@@ -60,9 +60,9 @@ export function Services() {
           </FadeIn>
         </div>
 
-        <FadeIn stagger={0.12} className="mt-14 grid gap-4 md:mt-20 md:grid-cols-3 md:gap-5">
+        <FadeIn stagger={0.12} className="mt-14 grid gap-4 md:mt-20 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
           {items.map((s, i) => {
-            const highlight = i === 1
+            const highlight = s.highlighted ?? false
             return (
               <div key={s.title} className="h-full">
                 <article
@@ -82,7 +82,7 @@ export function Services() {
                       </span>
                     )}
                   </div>
-                  <h3 className="heading mt-10 text-4xl md:text-[44px]">{s.title}</h3>
+                  <h3 className="heading mt-10 text-4xl xl:text-[38px]">{s.title}</h3>
                   <p className={`mt-3 text-[15px] leading-relaxed ${highlight ? 'text-ink/75' : 'text-paper/60'}`}>
                     {s.description}
                   </p>

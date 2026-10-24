@@ -32,12 +32,15 @@ export interface ServiceItem {
   title: string
   description: string
   features: string[]
+  /** The lime "most requested" card. */
+  highlighted?: boolean
 }
 
 export interface SiteSettings {
   hero: {
     headline: string
     subline: string
+    availability: string
     location: string
     tools: string[]
   }
@@ -67,6 +70,7 @@ export interface ContactMessageInput {
   name: string
   email: string
   project_type: string
+  work_mode?: string
   budget?: string
   message: string
 }

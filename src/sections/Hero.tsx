@@ -1,6 +1,6 @@
 import { useGSAP } from '@gsap/react'
 import { ArrowRight } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import photo1600 from '../assets/hero/pejman-1600.webp'
 import photo900 from '../assets/hero/pejman-900.webp'
@@ -13,18 +13,7 @@ import { useSiteData } from '../providers/SiteDataProvider'
 const NAME = 'PEJMAN AI'
 const BARS = [38, 52, 44, 66, 58, 80, 72, 96]
 
-function BangkokTime() {
-  const fmt = () =>
-    new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }).format(
-      new Date(),
-    )
-  const [time, setTime] = useState(fmt)
-  useEffect(() => {
-    const id = window.setInterval(() => setTime(fmt()), 30_000)
-    return () => window.clearInterval(id)
-  }, [])
-  return <span className="tabular-nums">{time}</span>
-}
+const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 export function Hero() {
   const ref = useRef<HTMLElement>(null)
@@ -212,7 +201,7 @@ export function Hero() {
             </div>
           </div>
 
-          {/* Location */}
+          {/* Availability */}
           <div className="hero-card-wrap w-[60vw] shrink-0 snap-start sm:w-[36vw] md:w-auto">
             <div className="hero-card relative flex h-[260px] flex-col justify-between overflow-hidden rounded-[28px] bg-paper p-5 text-ink md:h-[284px]">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -220,12 +209,20 @@ export function Hero() {
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-lime-2 opacity-75" />
                   <span className="relative inline-flex size-2.5 rounded-full bg-lime-2" />
                 </span>
-                Available for projects
+                {settings.hero.availability}
               </div>
               <div>
-                <p className="display text-[44px] leading-none">
-                  <BangkokTime />
-                </p>
+                <p className="display text-[56px] leading-none">7/7</p>
+                <ul className="mt-3 flex gap-1" aria-label="Monday to Sunday">
+                  {DAYS.map((d, i) => (
+                    <li
+                      key={i}
+                      className="flex size-6 items-center justify-center rounded-full bg-ink text-[10px] font-semibold text-lime"
+                    >
+                      {d}
+                    </li>
+                  ))}
+                </ul>
                 <p className="mt-3 text-sm font-medium text-ink/70">{settings.hero.location}</p>
               </div>
             </div>
@@ -260,7 +257,7 @@ function HeroCopy({
           mode="manual"
           play={play}
           delay={0.35}
-          className="heading text-[40px] text-paper sm:text-5xl lg:text-[64px]"
+          className="heading text-[40px] text-paper sm:text-5xl lg:text-[56px]"
         />
         <p className="hero-fade mt-4 max-w-md text-[15px] leading-relaxed text-paper/65 md:text-base">{subline}</p>
       </div>

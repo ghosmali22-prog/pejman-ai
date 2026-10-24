@@ -8,22 +8,24 @@ export const SITE_URL = 'https://ghosmali22-prog.github.io/pejman-ai'
  */
 export const defaultSettings: SiteSettings = {
   hero: {
-    headline: 'AI images, videos & automations. Free prompts to start.',
+    headline: 'AI images, motion, websites & automations. Free prompts to start.',
     subline:
-      'I create AI visuals and automations for brands and creators — and share the prompts behind my work for free.',
-    location: 'Based in Bangkok · Working worldwide',
-    tools: ['Midjourney', 'Nano Banana', 'GPT Image', 'Kling', 'Flux', 'Seedream'],
+      'I create AI photos, motion videos, websites and automations for brands and creators — and share the prompts behind my work for free.',
+    availability: 'Available 7 days a week',
+    location: 'On-site in Bangkok · Remote worldwide',
+    tools: ['Midjourney', 'Nano Banana', 'GPT Image', 'Kling', 'Veo', 'Flux', 'n8n'],
   },
   about: {
     label: 'About Pejman',
-    text: "I'm Pejman Ansaribarz, an AI creator based in Bangkok. I turn ideas into striking AI images, scroll-stopping video ads and automations that quietly save hours every week. Brands, founders and creators bring me a goal — I bring the prompts, the tools and the taste to make it real. Start with my free prompts, and when you're ready for something custom, let's build it together.",
+    text: "I'm Pejman Ansaribarz, an AI creator based in Bangkok. I make AI photos and videos, motion videos that stop the scroll, modern websites and automations that quietly save hours every week — and I share the prompts behind my work for free. Brands, founders and creators bring me a goal; I bring the tools and the taste to make it real. I work seven days a week, remotely with clients worldwide or on-site here in Bangkok. Start with my free prompts, and when you're ready for something custom, let's build it together.",
   },
   services: {
     heading: 'What I can build for you',
-    intro: 'Custom AI work for brands, creators and small teams. Tell me your goal and I will send you a clear quote.',
+    intro:
+      'Custom AI work for brands, creators and small teams — remote worldwide or on-site in Bangkok. Tell me your goal and I will send you a clear quote.',
     items: [
       {
-        title: 'AI Images',
+        title: 'AI Photos',
         description: 'Product shots, campaigns and portraits — without a studio, a crew or a reshoot.',
         features: [
           'Product & lifestyle visuals',
@@ -33,13 +35,24 @@ export const defaultSettings: SiteSettings = {
         ],
       },
       {
-        title: 'AI Video Ads',
-        description: 'Short, cinematic video ads built for Reels, TikTok and Shorts.',
+        title: 'Motion & Video',
+        description: 'AI videos and motion graphics built to stop the scroll on Reels, TikTok and Shorts.',
         features: [
-          'Concept, script & storyboard',
-          'AI-generated scenes & motion',
+          'Video ads & brand films',
+          'Motion graphics & animated logos',
           'Voice-over, music & captions',
           'Vertical & square formats',
+        ],
+        highlighted: true,
+      },
+      {
+        title: 'Websites',
+        description: 'Fast, modern websites with smooth animation — like the one you are on right now.',
+        features: [
+          'Landing pages & portfolios',
+          'Mobile-first, animated design',
+          'Forms, admin panel & database',
+          'Hosting & launch included',
         ],
       },
       {
@@ -56,7 +69,8 @@ export const defaultSettings: SiteSettings = {
   },
   contact: {
     heading: "Let's make something with AI.",
-    intro: 'Tell me about your project. I usually reply within 24 hours.',
+    intro:
+      "Tell me about your project. I'm available 7 days a week — remotely worldwide or in person in Bangkok — and usually reply within a few hours.",
     email: 'ghosmali22@gmail.com',
     whatsapp: '+66918157214',
     telegram: 'Pejmanansarii',
@@ -67,7 +81,8 @@ export const defaultSettings: SiteSettings = {
   },
 }
 
-export const PROJECT_TYPES = ['AI Images', 'AI Video Ads', 'AI Automation', 'Something else'] as const
+export const PROJECT_TYPES = ['AI Photos', 'Motion & Video', 'Websites', 'AI Automation', 'Something else'] as const
+export const WORK_MODES = ['Remote', 'On-site in Bangkok'] as const
 export const BUDGET_RANGES = ['Under $300', '$300 – $1,000', '$1,000 – $3,000', '$3,000+', 'Not sure yet'] as const
 
 export const contactLinks = (c: SiteSettings['contact']) => ({

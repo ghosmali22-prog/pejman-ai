@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { FadeIn } from '../components/motion/FadeIn'
 import { RevealText } from '../components/motion/RevealText'
 import { InstagramIcon, TelegramIcon, WhatsAppIcon } from '../components/ui/BrandIcons'
-import { BUDGET_RANGES, contactLinks, PROJECT_TYPES } from '../config/site'
+import { BUDGET_RANGES, contactLinks, PROJECT_TYPES, WORK_MODES } from '../config/site'
 import { useSiteData } from '../providers/SiteDataProvider'
 import { sendContactMessage } from '../services/contact'
 
@@ -18,6 +18,7 @@ export function Contact() {
   const links = contactLinks(c)
   const [status, setStatus] = useState<Status>('idle')
   const [projectType, setProjectType] = useState<string>(PROJECT_TYPES[0])
+  const [workMode, setWorkMode] = useState<string>(WORK_MODES[0])
 
   // "Request a quote" buttons in Services pre-select the project type.
   useEffect(() => {
@@ -40,6 +41,7 @@ export function Contact() {
         name: String(data.get('name') ?? ''),
         email: String(data.get('email') ?? ''),
         project_type: projectType,
+        work_mode: workMode,
         budget: String(data.get('budget') ?? ''),
         message: String(data.get('message') ?? ''),
       })
@@ -122,25 +124,8 @@ export function Contact() {
                   className={field}
                 />
 
-                <div className="sm:col-span-2">
-                  <p className="mb-2 mt-2 text-sm font-medium text-ink/60">Project type</p>
-                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Project type">
-                    {PROJECT_TYPES.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        role="radio"
-                        aria-checked={projectType === t}
-                        onClick={() => setProjectType(t)}
-                        className={`h-11 rounded-full px-4 text-sm font-medium transition-colors duration-300 ${
-                          projectType === t ? 'bg-ink text-paper' : 'bg-paper-2 text-ink/70 hover:text-ink'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <ChipGroup label="Project type" options={PROJECT_TYPES} value={projectType} onChange={setProjectType} />
+                <ChipGroup label="Where" options={WORK_MODES} value={workMode} onChange={setWorkMode} />
 
                 <label className="sr-only" htmlFor="cf-budget">
                   Budget (optional)
@@ -217,5 +202,39 @@ export function Contact() {
         </div>
       </div>
     </section>
+  )
+}
+
+function ChipGroup({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string
+  options: readonly string[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div className="sm:col-span-2">
+      <p className="mb-2 mt-2 text-sm font-medium text-ink/60">{label}</p>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
+        {options.map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="radio"
+            aria-checked={value === t}
+            onClick={() => onChange(t)}
+            className={`h-11 rounded-full px-4 text-sm font-medium transition-colors duration-300 ${
+              value === t ? 'bg-ink text-paper' : 'bg-paper-2 text-ink/70 hover:text-ink'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

@@ -13,6 +13,7 @@ export async function sendContactMessage(input: ContactMessageInput): Promise<vo
     name: input.name.trim(),
     email: input.email.trim(),
     project_type: input.project_type,
+    work_mode: input.work_mode || null,
     budget: input.budget || null,
     message: input.message.trim(),
   })
