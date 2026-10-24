@@ -340,3 +340,77 @@ export async function dailyCopies(n: number): Promise<DailyCopies[]> {
   const rows = await run<{ day: string; copies: number | string }[]>(sb().rpc('admin_daily_copies', { p_days: n }))
   return rows.map((r) => ({ day: String(r.day).slice(0, 10), copies: Number(r.copies) }))
 }
+
+// ---------------------------------------------------------------- AI suggestions
+export interface AiSuggestion {
+  title: string
+  category: string
+  tags: string[]
+}
+
+const blobToBase64 = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '')
+    r.onerror = reject
+    r.readAsDataURL(blob)
+  })
+
+const STOP = new Set([
+  'a',
+  'an',
+  'the',
+  'of',
+  'in',
+  'on',
+  'with',
+  'and',
+  'for',
+  'to',
+  'at',
+  'by',
+  'from',
+  'shot',
+  'photo',
+  'image',
+])
+
+/** Offline guess used in demo mode (no Supabase / no AI key). */
+function demoSuggest(prompt: string, cats: { slug: string; name: string }[]): AiSuggestion {
+  const words = prompt
+    .toLowerCase()
+    .replace(/--\w+\s+\S+/g, ' ')
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 2 && !STOP.has(w))
+  const title = words
+    .slice(0, 3)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(' ')
+  const category = cats.find((c) => words.includes(c.slug) || words.includes(c.name.toLowerCase()))?.slug ?? ''
+  return { title: title || 'Untitled Prompt', category, tags: [...new Set(words)].slice(0, 6) }
+}
+
+/**
+ * Asks the `ai-suggest` Edge Function (Gemini) for a title, category and tags.
+ * The thumbnail is sent small (max 512 px) to keep it fast.
+ */
+export async function aiSuggest(input: {
+  prompt: string
+  thumbnail?: Blob | null
+  categories: { slug: string; name: string }[]
+}): Promise<AiSuggestion> {
+  if (demo) {
+    await new Promise((r) => setTimeout(r, 700))
+    return demoSuggest(input.prompt, input.categories)
+  }
+  const body = {
+    prompt: input.prompt,
+    image: input.thumbnail ? await blobToBase64(input.thumbnail) : undefined,
+    mimeType: input.thumbnail?.type,
+    categories: input.categories,
+  }
+  const { data, error } = await sb().functions.invoke<AiSuggestion & { error?: string }>('ai-suggest', { body })
+  if (error) throw error
+  if (!data || data.error) throw new Error(data?.error ?? 'No answer')
+  return data
+}

@@ -1,0 +1,6 @@
+project_id = "icoiyuifywvtrlfagkdz"
+
+# Used only if you deploy with the Supabase CLI (`supabase functions deploy ai-suggest`).
+# The function checks the signed-in admin itself, so the gateway's legacy JWT check is off.
+[functions.ai-suggest]
+verify_jwt = false

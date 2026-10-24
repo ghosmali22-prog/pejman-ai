@@ -148,6 +148,11 @@ const fa = {
   createFirst: 'اولین پرامپت را بسازید',
   copyCount: (n: string) => `${n} کپی`,
   loading: 'در حال بارگذاری…',
+  aiFill: 'پر کردن خودکار',
+  aiWorking: 'هوش مصنوعی در حال بررسی عکس…',
+  aiDone: 'عنوان، دسته و تگ‌ها پر شد ✨',
+  aiFailed: 'هوش مصنوعی پاسخ نداد؛ دستی وارد کنید.',
+  aiNeedInput: 'اول عکس را انتخاب کنید یا پرامپت را بنویسید.',
 }
 
 type Dict = typeof fa
@@ -298,6 +303,11 @@ const en: Dict = {
   createFirst: 'Create your first prompt',
   copyCount: (n) => `${n} copies`,
   loading: 'Loading…',
+  aiFill: 'Auto-fill',
+  aiWorking: 'AI is looking at the image…',
+  aiDone: 'Title, category and tags filled ✨',
+  aiFailed: 'The AI did not answer — please fill it in manually.',
+  aiNeedInput: 'Choose an image or write the prompt first.',
 }
 
 const dicts = { fa, en }

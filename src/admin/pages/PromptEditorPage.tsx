@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, ExternalLink, ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, ImagePlus, Loader2, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../../providers/ToastProvider'
@@ -77,6 +77,9 @@ export function PromptEditorPage() {
   const [compressing, setCompressing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [tagInput, setTagInput] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  // Small copy of the chosen photo for the AI (max 512 px keeps it fast).
+  const thumbRef = useRef<Blob | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -120,17 +123,64 @@ export function PromptEditorPage() {
     setForm((f) => ({ ...f, title, slug: slugTouched ? f.slug : uniqueSlug(slugify(title), taken) }))
   }
 
+  const runAi = async (opts: { auto?: boolean } = {}) => {
+    if (aiBusy) return
+    let thumb = thumbRef.current
+    if (!thumb && row?.image_url) {
+      // Editing an existing prompt: shrink the saved image once.
+      try {
+        const res = await fetch(row.image_url)
+        const small = await compressImage(new File([await res.blob()], 'image'), 512, 0.8)
+        URL.revokeObjectURL(small.previewUrl)
+        thumb = thumbRef.current = small.blob
+      } catch {
+        thumb = null
+      }
+    }
+    if (!thumb && !form.prompt.trim()) {
+      if (!opts.auto) toast(t.aiNeedInput)
+      return
+    }
+    setAiBusy(true)
+    try {
+      const s = await api.aiSuggest({
+        prompt: form.prompt,
+        thumbnail: thumb,
+        categories: cats.map((c) => ({ slug: c.slug, name: c.name })),
+      })
+      setForm((f) => ({
+        ...f,
+        title: s.title || f.title,
+        slug: slugTouched ? f.slug : uniqueSlug(slugify(s.title || f.title), taken),
+        category: s.category || f.category,
+        tags: [...new Set([...f.tags, ...s.tags])],
+      }))
+      toast(t.aiDone)
+    } catch (err) {
+      console.error(err)
+      toast(t.aiFailed)
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
   const onFile = async (file?: File) => {
     if (!file) return
     setCompressing(true)
     try {
-      setImage(await compressImage(file))
+      const [full, small] = await Promise.all([compressImage(file), compressImage(file, 512, 0.8)])
+      URL.revokeObjectURL(small.previewUrl)
+      thumbRef.current = small.blob
+      setImage(full)
     } catch {
       toast(t.error)
+      return
     } finally {
       setCompressing(false)
       if (fileRef.current) fileRef.current.value = ''
     }
+    // New photo and no title yet → let the AI name it straight away.
+    if (!form.title.trim()) runAi({ auto: true })
   }
 
   const addTag = (raw: string) => {
@@ -292,14 +342,27 @@ export function PromptEditorPage() {
         {/* Fields */}
         <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-4 p-4 md:p-5">
-            <Field label={t.title}>
-              <Input
-                dir="ltr"
-                value={form.title}
-                onChange={(e) => onTitle(e.target.value)}
-                placeholder="Chrome Shades Studio Portrait"
-                required
-              />
+            <Field label={t.title} hint={aiBusy ? t.aiWorking : undefined}>
+              <div className="flex gap-2">
+                <Input
+                  dir="ltr"
+                  value={form.title}
+                  onChange={(e) => onTitle(e.target.value)}
+                  placeholder="Chrome Shades Studio Portrait"
+                  required
+                />
+                <Button
+                  variant="lime"
+                  className="h-12 px-4"
+                  loading={aiBusy}
+                  onClick={() => runAi()}
+                  aria-label={t.aiFill}
+                  title={t.aiFill}
+                >
+                  {!aiBusy && <Sparkles className="size-4" />}
+                  <span className="hidden sm:inline">{t.aiFill}</span>
+                </Button>
+              </div>
             </Field>
             <Field
               label={t.slug}
