@@ -36,5 +36,5 @@ export async function trackCopy(prompt: Prompt): Promise<void> {
     /* storage blocked: still count */
   }
   if (!isSupabaseConfigured || !supabase) return
-  await supabase.rpc('increment_copy_count', { prompt_id: prompt.id })
+  await supabase.rpc('increment_copy_count', { p_id: prompt.id })
 }

@@ -1,6 +1,7 @@
 import { useGSAP } from '@gsap/react'
 import { Search, X } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
+import photo900 from '../assets/hero/pejman-900.webp'
 import { PromptCard } from '../features/prompts/PromptCard'
 import { gsap, hasFinePointer, ScrollTrigger } from '../lib/motion'
 import { useMotion } from '../providers/MotionProvider'
@@ -118,9 +119,9 @@ export function Prompts() {
               className="inset-box relative mx-[0.04em] inline-block h-[0.74em] w-[1.25em] overflow-hidden rounded-[0.12em] bg-paper-2 align-middle"
               aria-hidden="true"
             >
-              {inset && (
+              {!loading && (
                 <img
-                  src={inset.image_url}
+                  src={inset?.image_url ?? photo900}
                   alt=""
                   loading="lazy"
                   className="inset-img absolute inset-0 size-full object-cover grayscale"
@@ -200,8 +201,10 @@ export function Prompts() {
 
         {!loading && filtered.length === 0 && (
           <div className="py-20 text-center">
-            <p className="heading text-3xl">{error ?? 'No prompts found.'}</p>
-            {!error && (
+            <p className="heading text-3xl">
+              {error ?? (prompts.length === 0 ? 'New prompts are coming soon.' : 'No prompts found.')}
+            </p>
+            {!error && prompts.length > 0 && (
               <button
                 type="button"
                 onClick={() => {

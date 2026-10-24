@@ -134,22 +134,27 @@ export function Hero() {
               to={featured ? `/p/${featured.slug}` : '/'}
               state={{ modal: true }}
               data-cursor="view"
+              onClick={(e) => {
+                if (featured) return
+                e.preventDefault()
+                go('prompts')
+              }}
               className="hero-card group relative block h-[300px] overflow-hidden rounded-[28px] bg-ink-3 md:h-[340px]"
             >
-              {featured && (
-                <img
-                  src={featured.image_url}
-                  alt={featured.title}
-                  loading="lazy"
-                  className="absolute inset-0 size-full object-cover grayscale transition-transform duration-[1.2s] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
-                />
-              )}
+              <img
+                src={featured?.image_url ?? photo900}
+                alt={featured?.title ?? ''}
+                loading="lazy"
+                className={`absolute inset-0 size-full grayscale transition-transform duration-[1.2s] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105 ${
+                  featured ? 'object-cover' : 'object-cover object-top'
+                }`}
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
               <div className="absolute inset-x-4 bottom-4">
                 <span className="mb-2 inline-flex rounded-full bg-lime px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-ink">
-                  Featured prompt
+                  {featured ? 'Featured prompt' : 'Coming soon'}
                 </span>
-                <p className="heading text-xl text-paper">{featured?.title ?? 'Prompts'}</p>
+                <p className="heading text-xl text-paper">{featured?.title ?? 'New prompts every week'}</p>
               </div>
             </Link>
           </div>
@@ -159,7 +164,7 @@ export function Hero() {
             <div className="hero-card flex h-[230px] flex-col justify-between rounded-[28px] bg-lime p-5 text-ink md:h-[250px]">
               <span className="text-sm font-medium">Prompt library</span>
               <div>
-                <p className="display text-[64px] leading-none">{count}+</p>
+                <p className="display text-[64px] leading-none">{count > 0 ? `${count}+` : 'New'}</p>
                 <p className="mt-2 text-sm font-medium">prompts, ready to copy</p>
               </div>
             </div>
