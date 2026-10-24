@@ -1,5 +1,6 @@
 import Lenis from 'lenis'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { detectMotionLevel, gsap, ScrollTrigger, type MotionLevel } from '../lib/motion'
 
 interface MotionContextValue {
@@ -17,10 +18,12 @@ export function MotionProvider({ children }: { children: ReactNode }) {
   const [level] = useState<MotionLevel>(detectMotionLevel)
   const [lenis, setLenis] = useState<Lenis | null>(null)
   const [introDone, setIntroDone] = useState(false)
+  // The admin panel scrolls natively (long forms and lists feel better that way).
+  const inAdmin = useLocation().pathname.startsWith('/admin')
 
   useEffect(() => {
-    document.documentElement.dataset.motion = level
-    if (level !== 'full') return
+    document.documentElement.dataset.motion = inAdmin ? 'none' : level
+    if (level !== 'full' || inAdmin) return
 
     const instance = new Lenis({ lerp: 0.09, wheelMultiplier: 1, smoothWheel: true })
     instance.on('scroll', ScrollTrigger.update)
@@ -34,7 +37,7 @@ export function MotionProvider({ children }: { children: ReactNode }) {
       instance.destroy()
       setLenis(null)
     }
-  }, [level])
+  }, [level, inAdmin])
 
   const value = useMemo<MotionContextValue>(
     () => ({

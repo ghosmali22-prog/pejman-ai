@@ -12,7 +12,7 @@ export async function fetchPrompts(): Promise<Prompt[]> {
     .order('position', { ascending: true })
     .order('created_at', { ascending: false })
   if (error) throw error
-  return (data ?? []) as Prompt[]
+  return ((data ?? []) as Prompt[]).map((p) => ({ ...p, category: p.category ?? '', tags: p.tags ?? [] }))
 }
 
 export async function fetchCategories(): Promise<Category[]> {

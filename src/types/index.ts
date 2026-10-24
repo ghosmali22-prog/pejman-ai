@@ -74,3 +74,32 @@ export interface ContactMessageInput {
   budget?: string
   message: string
 }
+
+export interface ContactMessage {
+  id: string
+  name: string
+  email: string
+  project_type: string | null
+  work_mode: string | null
+  budget: string | null
+  message: string
+  is_read: boolean
+  created_at: string
+}
+
+export interface Subscriber {
+  id: string
+  email: string
+  created_at: string
+}
+
+/** Prompt row as stored in the database (includes admin-only fields). */
+export interface PromptRow extends Prompt {
+  image_path?: string | null
+  updated_at?: string
+}
+
+export interface DailyCopies {
+  day: string
+  copies: number
+}
