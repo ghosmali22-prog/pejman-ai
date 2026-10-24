@@ -34,6 +34,8 @@ export function AdminLayout() {
   const { unread, email } = useAdmin()
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
+  // Form pages have their own big Save button at the bottom, so the tab bar steps aside.
+  const formPage = /^\/admin\/(prompts\/[^/]+|settings)\/?$/.test(location.pathname)
 
   useEffect(() => {
     setMoreOpen(false)
@@ -160,7 +162,9 @@ export function AdminLayout() {
           )}
         </header>
 
-        <main className="relative mx-auto max-w-6xl px-4 pb-32 pt-6 md:px-8 md:pt-8 lg:pb-16">
+        <main
+          className={cx('relative mx-auto max-w-6xl px-4 pt-6 md:px-8 md:pt-8 lg:pb-16', formPage ? 'pb-8' : 'pb-32')}
+        >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 -top-24 -z-0 h-72 bg-[radial-gradient(50%_60%_at_50%_0%,rgb(198_244_50/0.07),transparent)]"
@@ -173,7 +177,10 @@ export function AdminLayout() {
 
       {/* Mobile bottom navigation */}
       <nav
-        className="fixed inset-x-3 bottom-3 z-50 flex h-[68px] items-center justify-around rounded-[26px] bg-ink-2/90 px-2 ring-1 ring-white/10 backdrop-blur-xl lg:hidden"
+        className={cx(
+          'fixed inset-x-3 bottom-3 z-50 h-[68px] items-center justify-around rounded-[26px] bg-ink-2/90 px-2 ring-1 ring-white/10 backdrop-blur-xl lg:hidden',
+          formPage ? 'hidden' : 'flex',
+        )}
         style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         aria-label="Admin"
       >

@@ -81,7 +81,7 @@ export function SettingsPage() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="pb-44 lg:pb-0">
+    <form onSubmit={onSubmit} className="pb-28 lg:pb-0">
       <PageHeader
         title={t.settings}
         subtitle={t.settingsHint}
@@ -193,7 +193,11 @@ export function SettingsPage() {
         <Section title={t.footer}>{txt('footer', 'newsletter', t.newsletter)}</Section>
       </div>
 
-      <div className="fixed inset-x-3 bottom-[92px] z-40 lg:static lg:mt-6 lg:flex lg:justify-end">
+      {/* On phones the bottom nav is hidden on this page, so the save button sits at the very bottom. */}
+      <div
+        className="fixed inset-x-3 bottom-3 z-40 lg:static lg:mt-6 lg:flex lg:justify-end"
+        style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <Button
           type="submit"
           variant="lime"

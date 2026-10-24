@@ -107,7 +107,27 @@ export const auth = {
 }
 
 // ---------------------------------------------------------------- storage
-async function uploadImage(img: CompressedImage) {
+export type UploadedImage = Pick<PromptRow, 'image_url' | 'image_path' | 'image_width' | 'image_height'>
+
+/** Uploads a compressed prompt image to Storage and returns the fields to store on the prompt. */
+export async function uploadPromptImage(img: CompressedImage): Promise<UploadedImage> {
+  if (demo) {
+    return {
+      image_url: URL.createObjectURL(img.blob),
+      image_path: null,
+      image_width: img.width,
+      image_height: img.height,
+    }
+  }
+  return uploadImage(img)
+}
+
+/** Removes an uploaded image that ended up unused (photo replaced, or editor left without saving). */
+export function discardUpload(img?: UploadedImage | null) {
+  if (img?.image_path) removeImage(img.image_path).catch(() => {})
+}
+
+async function uploadImage(img: CompressedImage): Promise<UploadedImage> {
   const path = `prompts/${uid()}.${img.ext}`
   const { error } = await sb()
     .storage.from(IMAGE_BUCKET)
@@ -136,61 +156,47 @@ export const prompts = {
     return run(sb().from('prompts').select('*').eq('id', id).maybeSingle())
   },
 
-  /** Creates or updates a prompt; uploads the new image first and deletes the replaced one. */
-  async save(draft: PromptDraft, image?: CompressedImage | null): Promise<PromptRow> {
-    const existing = draft.id ? await prompts.get(draft.id) : null
-    let imageFields: Partial<PromptRow> = {}
-    if (image) {
-      imageFields = demo
-        ? {
-            image_url: URL.createObjectURL(image.blob),
-            image_path: null,
-            image_width: image.width,
-            image_height: image.height,
-          }
-        : await uploadImage(image)
-    }
+  /**
+   * Creates or updates a prompt. The image is uploaded beforehand (see `uploadPromptImage`,
+   * which the editor starts as soon as a photo is picked), so saving is one quick database call.
+   * Deletes the replaced image file after a successful update.
+   */
+  async save(
+    draft: PromptDraft,
+    opts: { image?: UploadedImage | null; existing?: PromptRow | null; position?: number } = {},
+  ): Promise<PromptRow> {
+    const { image, existing } = opts
     const { id, ...fields } = draft
-    const row = { ...fields, ...imageFields }
+    const row = { ...fields, ...(image ?? {}) }
 
     if (demo) {
-      if (existing) {
-        Object.assign(existing, row)
-        return existing
-      }
+      const current = id ? store.prompts.find((p) => p.id === id) : null
+      if (current) return Object.assign(current, row)
       const created: PromptRow = {
         ...(row as PromptRow),
         id: uid(),
         copy_count: 0,
         created_at: new Date().toISOString(),
-        position: Math.min(0, ...store.prompts.map((p) => p.position)) - 1,
+        position: opts.position ?? Math.min(0, ...store.prompts.map((p) => p.position)) - 1,
       }
       store.prompts.push(created)
       return created
     }
 
-    if (existing && id) {
+    if (id) {
       const saved = await run<PromptRow>(sb().from('prompts').update(row).eq('id', id).select().single())
-      if (image && existing.image_path && existing.image_path !== saved.image_path) {
-        await removeImage(existing.image_path).catch(() => {})
+      if (image && existing?.image_path && existing.image_path !== saved.image_path) {
+        removeImage(existing.image_path).catch(() => {})
       }
       return saved
     }
-    const { data: first } = await sb().from('prompts').select('position').order('position').limit(1).maybeSingle()
-    const position = Math.min(0, (first?.position as number | undefined) ?? 0) - 1
-    try {
-      return await run<PromptRow>(
-        sb()
-          .from('prompts')
-          .insert({ ...row, position })
-          .select()
-          .single(),
-      )
-    } catch (e) {
-      // Don't leave an orphaned upload behind if the row could not be saved.
-      if (imageFields.image_path) await removeImage(imageFields.image_path).catch(() => {})
-      throw e
-    }
+    return run<PromptRow>(
+      sb()
+        .from('prompts')
+        .insert({ ...row, position: opts.position ?? -Date.now() / 1000 })
+        .select()
+        .single(),
+    )
   },
 
   async update(id: string, patch: Partial<PromptRow>) {
@@ -386,7 +392,7 @@ function demoSuggest(prompt: string, cats: { slug: string; name: string }[]): Ai
     .slice(0, 3)
     .map((w) => w[0].toUpperCase() + w.slice(1))
     .join(' ')
-  const category = cats.find((c) => words.includes(c.slug) || words.includes(c.name.toLowerCase()))?.slug ?? ''
+  const category = matchCategory('', words, cats)
   return { title: title || 'Untitled Prompt', category, tags: [...new Set(words)].slice(0, 6) }
 }
 
@@ -412,5 +418,34 @@ export async function aiSuggest(input: {
   const { data, error } = await sb().functions.invoke<AiSuggestion & { error?: string }>('ai-suggest', { body })
   if (error) throw error
   if (!data || data.error) throw new Error(data?.error ?? 'No answer')
-  return data
+  return { ...data, category: matchCategory(data.category, [data.title, ...(data.tags ?? [])], input.categories) }
+}
+
+/**
+ * Makes sure the category is one of yours: accepts "Portrait", "portrait (Portrait)" or a plural,
+ * and if the AI left it empty, picks the first category mentioned in the tags or title.
+ */
+export function matchCategory(raw: string, hints: string[], cats: { slug: string; name: string }[]): string {
+  const norm = (v: string) =>
+    v
+      .toLowerCase()
+      .replace(/\(.*?\)/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+  const same = (a: string, b: string) => a === b || a === `${b}s` || `${a}s` === b
+  const find = (v: string) => {
+    const n = norm(v)
+    return cats.find((c) => same(n, norm(c.slug)) || same(n, norm(c.name)))?.slug
+  }
+  const direct = raw ? find(raw) : undefined
+  if (direct) return direct
+  for (const h of hints) {
+    const whole = find(h)
+    if (whole) return whole
+    for (const word of norm(h).split(' ')) {
+      const hit = find(word)
+      if (hit) return hit
+    }
+  }
+  return ''
 }

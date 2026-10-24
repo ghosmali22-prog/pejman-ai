@@ -80,6 +80,17 @@ export function PromptEditorPage() {
   const [aiBusy, setAiBusy] = useState(false)
   // Small copy of the chosen photo for the AI (max 512 px keeps it fast).
   const thumbRef = useRef<Blob | null>(null)
+  // The photo starts uploading the moment it is picked, so "Save" only has to write the row.
+  const uploadRef = useRef<Promise<api.UploadedImage | null> | null>(null)
+  const savedRef = useRef(false)
+
+  // Leaving without saving: delete the photo that was uploaded in the background.
+  useEffect(
+    () => () => {
+      if (!savedRef.current) uploadRef.current?.then(api.discardUpload)
+    },
+    [],
+  )
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -172,6 +183,11 @@ export function PromptEditorPage() {
       URL.revokeObjectURL(small.previewUrl)
       thumbRef.current = small.blob
       setImage(full)
+      uploadRef.current?.then(api.discardUpload) // a different photo was picked before
+      uploadRef.current = api.uploadPromptImage(full).catch((err) => {
+        console.error(err)
+        return null
+      })
     } catch {
       toast(t.error)
       return
@@ -216,6 +232,12 @@ export function PromptEditorPage() {
 
     setSaving(true)
     try {
+      let uploaded: api.UploadedImage | null = null
+      if (image) {
+        // Usually already finished while you were typing; retry once if it failed.
+        uploaded = (await uploadRef.current) ?? (await api.uploadPromptImage(image))
+        uploadRef.current = Promise.resolve(uploaded)
+      }
       const settings = Object.fromEntries(
         form.settings.filter((s) => s.k.trim() && s.v.trim()).map((s) => [s.k.trim(), s.v.trim()]),
       )
@@ -233,8 +255,13 @@ export function PromptEditorPage() {
           featured: form.featured,
           published: form.published,
         },
-        image,
+        {
+          image: uploaded,
+          existing: row,
+          position: Math.min(0, ...all.map((p) => p.position)) - 1,
+        },
       )
+      savedRef.current = true
       try {
         localStorage.setItem(MODEL_KEY, form.model.trim())
       } catch {
@@ -268,7 +295,7 @@ export function PromptEditorPage() {
   const publicUrl = `${window.location.origin}${import.meta.env.BASE_URL}p/${form.slug || '…'}`
 
   return (
-    <form onSubmit={onSubmit} className="pb-44 lg:pb-0">
+    <form onSubmit={onSubmit} className="pb-28 lg:pb-0">
       <div className="mb-6 flex items-center gap-3">
         <Link
           to="/admin/prompts"
@@ -555,7 +582,11 @@ export function PromptEditorPage() {
       </div>
 
       {/* Save bar: sticky above the phone's bottom nav */}
-      <div className="fixed inset-x-3 bottom-[92px] z-40 lg:static lg:mt-6 lg:flex lg:justify-end">
+      {/* On phones the bottom nav is hidden on this page, so the save button sits at the very bottom. */}
+      <div
+        className="fixed inset-x-3 bottom-3 z-40 lg:static lg:mt-6 lg:flex lg:justify-end"
+        style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <Button
           type="submit"
           variant="lime"

@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     'You name AI-generated images for a public prompt-library website (PEJMAN AI).',
     'Look at the image and the prompt that created it, then return JSON with:',
     '- "title": a short, catchy English title in Title Case, 2–5 words, no quotes, no emojis, no model names.',
-    `- "category": exactly one slug from this list that fits best: ${categories.map((c) => `${c.slug} (${c.name})`).join(', ') || 'none'}. Use "" if nothing fits.`,
+    `- "category": the single best-fitting slug from this list (always pick one): ${categories.map((c) => c.slug).join(', ') || 'none'}.`,
     '- "tags": 4–7 lowercase English tags (1–2 words each) describing subject, style, mood and lighting.',
   ].join('\n')
 
@@ -95,7 +95,9 @@ Deno.serve(async (req) => {
           type: 'OBJECT',
           properties: {
             title: { type: 'STRING' },
-            category: { type: 'STRING' },
+            category: categories.length
+              ? { type: 'STRING', enum: categories.map((c) => c.slug) }
+              : { type: 'STRING' },
             tags: { type: 'ARRAY', items: { type: 'STRING' } },
           },
           required: ['title', 'category', 'tags'],
@@ -123,8 +125,9 @@ Deno.serve(async (req) => {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 80)
-  const slugs = new Set(categories.map((c) => c.slug))
-  const category = slugs.has(String(out.category)) ? String(out.category) : ''
+  const wanted = String(out.category ?? '').toLowerCase().replace(/\(.*?\)/g, '').trim()
+  const category =
+    categories.find((c) => c.slug === wanted || c.name.toLowerCase() === wanted || `${c.slug}s` === wanted)?.slug ?? ''
   const tags = [
     ...new Set(
       (Array.isArray(out.tags) ? out.tags : [])

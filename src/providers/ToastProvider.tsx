@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 
 type ToastFn = (message: string) => void
 const ToastContext = createContext<ToastFn>(() => {})
@@ -7,6 +8,8 @@ const ToastContext = createContext<ToastFn>(() => {})
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
   const timer = useRef<number | undefined>(undefined)
+  // In the admin panel the bottom of the screen holds the Save button, so toasts drop in from the top.
+  const top = useLocation().pathname.startsWith('/admin')
 
   const show = useCallback<ToastFn>((message) => {
     window.clearTimeout(timer.current)
@@ -17,14 +20,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={show}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-6 z-[120] flex justify-center px-4">
+      <div
+        aria-live="polite"
+        className={`pointer-events-none fixed inset-x-0 z-[120] flex justify-center px-4 ${top ? 'top-3' : 'bottom-6'}`}
+        style={top ? { marginTop: 'env(safe-area-inset-top)' } : undefined}
+      >
         <AnimatePresence>
           {toast && (
             <motion.div
               key={toast.id}
-              initial={{ opacity: 0, y: 16, scale: 0.96 }}
+              initial={{ opacity: 0, y: top ? -16 : 16, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              exit={{ opacity: 0, y: top ? -8 : 8, scale: 0.98 }}
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
               className="flex items-center gap-2 rounded-full bg-lime px-5 py-3 text-sm font-semibold text-ink shadow-[0_10px_40px_-10px_rgb(198_244_50/0.6)]"
             >
