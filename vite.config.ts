@@ -1,6 +1,8 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { createHash } from 'node:crypto'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 
 /**
@@ -43,13 +45,47 @@ function contentSecurityPolicy(supabaseUrl?: string): Plugin {
   }
 }
 
+/**
+ * Writes dist/admin/index.html: the same app, but with the admin web-app manifest in the
+ * initial HTML. iPhone reads the manifest when the page loads, so "Add to Home Screen"
+ * from /admin/ then opens the panel. GitHub Pages also serves it directly (no 404 redirect).
+ */
+function adminEntry(): Plugin {
+  let outDir = 'dist'
+  return {
+    name: 'pejman-admin-entry',
+    apply: 'build',
+    configResolved(c) {
+      outDir = c.build.outDir
+    },
+    closeBundle() {
+      const html = readFileSync(join(outDir, 'index.html'), 'utf8')
+        .replace(/<title>[^<]*<\/title>/, '<title>Admin · PEJMAN AI</title>')
+        .replace(/(<link rel="manifest" href="[^"]*)site\.webmanifest"/, '$1admin.webmanifest"')
+        .replace(
+          '<link rel="manifest"',
+          [
+            '<meta name="robots" content="noindex" />',
+            '<meta name="apple-mobile-web-app-capable" content="yes" />',
+            '<meta name="mobile-web-app-capable" content="yes" />',
+            '<meta name="apple-mobile-web-app-title" content="PEJMAN Admin" />',
+            '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />',
+            '<link rel="manifest"',
+          ].join('\n    '),
+        )
+      mkdirSync(join(outDir, 'admin'), { recursive: true })
+      writeFileSync(join(outDir, 'admin', 'index.html'), html)
+    },
+  }
+}
+
 // The site is served from https://<user>.github.io/pejman-ai/ on GitHub Pages.
 // Set VITE_BASE=/ if you later move to a custom domain.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   return {
     base: process.env.VITE_BASE ?? '/pejman-ai/',
-    plugins: [react(), tailwindcss(), contentSecurityPolicy(env.VITE_SUPABASE_URL)],
+    plugins: [react(), tailwindcss(), contentSecurityPolicy(env.VITE_SUPABASE_URL), adminEntry()],
     build: {
       rollupOptions: {
         output: {

@@ -95,7 +95,7 @@ export const auth = {
     await sb().auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}admin`,
+        redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}admin/`,
         queryParams: { prompt: 'select_account' },
       },
     })
