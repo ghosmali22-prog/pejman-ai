@@ -1,25 +1,18 @@
 import { sampleCategories, samplePrompts } from '../data/samples'
-import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { isSupabaseConfigured } from '../lib/config'
+import { rest } from '../lib/rest'
 import type { Category, Prompt } from '../types'
 
 /** Published prompts, ordered the way the admin arranged them. */
 export async function fetchPrompts(): Promise<Prompt[]> {
-  if (!supabase) return samplePrompts
-  const { data, error } = await supabase
-    .from('prompts')
-    .select('*')
-    .eq('published', true)
-    .order('position', { ascending: true })
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return ((data ?? []) as Prompt[]).map((p) => ({ ...p, category: p.category ?? '', tags: p.tags ?? [] }))
+  if (!isSupabaseConfigured) return samplePrompts
+  const rows = await rest<Prompt[]>('prompts?select=*&published=is.true&order=position.asc,created_at.desc')
+  return rows.map((p) => ({ ...p, category: p.category ?? '', tags: p.tags ?? [] }))
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  if (!supabase) return sampleCategories
-  const { data, error } = await supabase.from('categories').select('*').order('position', { ascending: true })
-  if (error) throw error
-  return (data ?? []) as Category[]
+  if (!isSupabaseConfigured) return sampleCategories
+  return rest<Category[]>('categories?select=*&order=position.asc')
 }
 
 const copiedKey = (id: string) => `pj-copied-${id}`
@@ -35,6 +28,6 @@ export async function trackCopy(prompt: Prompt): Promise<void> {
   } catch {
     /* storage blocked: still count */
   }
-  if (!isSupabaseConfigured || !supabase) return
-  await supabase.rpc('increment_copy_count', { p_id: prompt.id })
+  if (!isSupabaseConfigured) return
+  await rest('rpc/increment_copy_count', { method: 'POST', body: { p_id: prompt.id } })
 }

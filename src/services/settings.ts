@@ -1,5 +1,6 @@
 import { defaultSettings } from '../config/site'
-import { supabase } from '../lib/supabase'
+import { isSupabaseConfigured } from '../lib/config'
+import { rest } from '../lib/rest'
 import type { SiteSettings } from '../types'
 
 type Plain = Record<string, unknown>
@@ -17,8 +18,11 @@ export function mergeSettings<T>(base: T, override: unknown): T {
 }
 
 export async function fetchSettings(): Promise<SiteSettings> {
-  if (!supabase) return defaultSettings
-  const { data, error } = await supabase.from('site_settings').select('data').eq('id', 1).maybeSingle()
-  if (error || !data) return defaultSettings
-  return mergeSettings(defaultSettings, data.data)
+  if (!isSupabaseConfigured) return defaultSettings
+  try {
+    const rows = await rest<{ data: Partial<SiteSettings> }[]>('site_settings?select=data&id=eq.1')
+    return mergeSettings(defaultSettings, rows[0]?.data ?? {})
+  } catch {
+    return defaultSettings
+  }
 }
