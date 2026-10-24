@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ghosmali22-prog.github.io/pejman-ai/sitemap.xml

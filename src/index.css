@@ -1,0 +1,123 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #0b0d0c;
+  --color-ink-2: #141716;
+  --color-ink-3: #1d211f;
+  --color-line: #2a2f2c;
+  --color-paper: #ffffff;
+  --color-paper-2: #f3f4f1;
+  --color-mute: #8d928e;
+  --color-lime: #c6f432;
+  --color-lime-2: #b3e01f;
+
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-ink text-paper font-sans antialiased;
+    font-feature-settings: 'ss01', 'cv11';
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: var(--color-lime);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-lime);
+    outline-offset: 3px;
+  }
+  img {
+    -webkit-user-drag: none;
+  }
+}
+
+/* Lenis recommended styles */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis:not(.lenis-autoToggle).lenis-stopped {
+  overflow: clip;
+}
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+@utility display {
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 0.88;
+}
+
+@utility heading {
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Masks used by word/line reveal animations. Words stay visible if JS never runs. */
+.reveal-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+.reveal-word {
+  display: inline-block;
+  will-change: transform;
+}
+
+/* Hide the native cursor only where the custom "View Prompt" cursor takes over. */
+.has-custom-cursor [data-cursor='view'] {
+  cursor: none;
+}
+
+.lime-glow {
+  background: radial-gradient(
+    60% 100% at 50% 100%,
+    rgb(198 244 50 / 0.35),
+    rgb(198 244 50 / 0.08) 45%,
+    transparent 75%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* When motion is on, ThemeBackdrop paints the light sections' background (smooth dark ↔ white).
+   Dark sections keep their own solid background so their edges stay crisp. */
+html[data-motion='full'] [data-theme='light'],
+html[data-motion='lite'] [data-theme='light'] {
+  background-color: transparent;
+}
+
+/* Touch devices: the card closest to the middle of the screen shows its colors. */
+.prompt-card.is-active .prompt-color {
+  opacity: 1;
+}
