@@ -10,8 +10,9 @@ import { compressImage, formatBytes, type CompressedImage } from '../lib/image'
 import { slugify, uniqueSlug } from '../lib/slug'
 
 const MODELS = [
-  'Midjourney v7',
+  'Nano Banana Pro',
   'Nano Banana',
+  'Midjourney v7',
   'GPT Image',
   'Flux 1.1 Pro',
   'Seedream',
@@ -21,6 +22,16 @@ const MODELS = [
   'Leonardo',
 ]
 const RATIOS = ['1:1', '4:5', '3:4', '2:3', '9:16', '16:9']
+const MODEL_KEY = 'pj-admin-last-model'
+
+/** New prompts start with the model you used last time (Nano Banana Pro the first time). */
+function lastModel() {
+  try {
+    return localStorage.getItem(MODEL_KEY) || 'Nano Banana Pro'
+  } catch {
+    return 'Nano Banana Pro'
+  }
+}
 
 interface Form {
   title: string
@@ -39,7 +50,7 @@ const empty: Form = {
   title: '',
   slug: '',
   category: '',
-  model: 'Midjourney v7',
+  model: 'Nano Banana Pro',
   prompt: '',
   negative_prompt: '',
   settings: [],
@@ -88,7 +99,12 @@ export function PromptEditorPage() {
           published: r.published,
         })
       } else {
-        setForm((f) => ({ ...f, category: cs[0]?.slug ?? '', settings: [{ k: 'Aspect ratio', v: '4:5' }] }))
+        setForm((f) => ({
+          ...f,
+          model: lastModel(),
+          category: cs[0]?.slug ?? '',
+          settings: [{ k: 'Aspect ratio', v: '4:5' }],
+        }))
       }
       setLoaded(true)
     })
@@ -169,6 +185,11 @@ export function PromptEditorPage() {
         },
         image,
       )
+      try {
+        localStorage.setItem(MODEL_KEY, form.model.trim())
+      } catch {
+        /* ignore */
+      }
       toast(t.saved)
       navigate('/admin/prompts')
     } catch (err) {
