@@ -30,6 +30,33 @@ function Shell() {
   const [email, setEmail] = useState<string | null | undefined>(undefined)
   const [unread, setUnread] = useState(0)
 
+  // "Add to Home Screen" from the panel should open the panel, not the website.
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL
+    const set = (selector: string, attr: string, value: string, create: () => HTMLElement) => {
+      const el = (document.head.querySelector(selector) as HTMLElement | null) ?? document.head.appendChild(create())
+      const prev = el.getAttribute(attr)
+      el.setAttribute(attr, value)
+      return () => (prev === null ? el.remove() : el.setAttribute(attr, prev))
+    }
+    const meta = (name: string) => () => Object.assign(document.createElement('meta'), { name })
+    const undo = [
+      set('link[rel="manifest"]', 'href', `${base}admin.webmanifest`, () =>
+        Object.assign(document.createElement('link'), { rel: 'manifest' }),
+      ),
+      set('meta[name="apple-mobile-web-app-title"]', 'content', 'PEJMAN Admin', meta('apple-mobile-web-app-title')),
+      set('meta[name="apple-mobile-web-app-capable"]', 'content', 'yes', meta('apple-mobile-web-app-capable')),
+      set('meta[name="mobile-web-app-capable"]', 'content', 'yes', meta('mobile-web-app-capable')),
+      set(
+        'meta[name="apple-mobile-web-app-status-bar-style"]',
+        'content',
+        'black-translucent',
+        meta('apple-mobile-web-app-status-bar-style'),
+      ),
+    ]
+    return () => undo.forEach((fn) => fn())
+  }, [])
+
   useEffect(() => {
     document.title = 'Admin · PEJMAN AI'
     api.auth.email().then(setEmail)

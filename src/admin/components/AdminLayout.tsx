@@ -116,7 +116,10 @@ export function AdminLayout() {
 
       <div className="min-w-0 flex-1">
         {/* Top bar */}
-        <header className="sticky top-0 z-40 border-b border-white/[0.07] bg-ink/80 backdrop-blur-xl">
+        <header
+          className="sticky top-0 z-40 border-b border-white/[0.07] bg-ink/80 backdrop-blur-xl"
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        >
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 md:px-8">
             <Link to="/admin" className="lg:hidden" dir="ltr">
               <Logo />
