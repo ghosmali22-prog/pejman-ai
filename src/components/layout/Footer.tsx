@@ -25,7 +25,7 @@ export function Footer() {
   }
 
   const explore: { id: SectionId; label: string }[] = [
-    { id: 'prompts', label: 'Free prompts' },
+    { id: 'prompts', label: 'Prompts' },
     { id: 'about', label: 'About' },
     { id: 'services', label: 'Services' },
     { id: 'contact', label: 'Contact' },

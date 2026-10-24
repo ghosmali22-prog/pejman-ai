@@ -149,7 +149,7 @@ export function Hero() {
                 <span className="mb-2 inline-flex rounded-full bg-lime px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-ink">
                   Featured prompt
                 </span>
-                <p className="heading text-xl text-paper">{featured?.title ?? 'Free prompts'}</p>
+                <p className="heading text-xl text-paper">{featured?.title ?? 'Prompts'}</p>
               </div>
             </Link>
           </div>
@@ -157,10 +157,10 @@ export function Hero() {
           {/* Stat */}
           <div className="hero-card-wrap w-[52vw] shrink-0 snap-start sm:w-[32vw] md:w-auto">
             <div className="hero-card flex h-[230px] flex-col justify-between rounded-[28px] bg-lime p-5 text-ink md:h-[250px]">
-              <span className="text-sm font-medium">Free library</span>
+              <span className="text-sm font-medium">Prompt library</span>
               <div>
                 <p className="display text-[64px] leading-none">{count}+</p>
-                <p className="mt-2 text-sm font-medium">free prompts, ready to copy</p>
+                <p className="mt-2 text-sm font-medium">prompts, ready to copy</p>
               </div>
             </div>
           </div>
@@ -267,7 +267,7 @@ function HeroCopy({
           onClick={onBrowse}
           className="group inline-flex h-14 items-center justify-center gap-2 rounded-full bg-lime px-7 text-base font-semibold text-ink transition-transform duration-300 hover:scale-[1.03] active:scale-[0.98]"
         >
-          Browse free prompts
+          Browse prompts
           <ArrowRight className="size-5 transition-transform duration-300 group-hover:translate-x-1" />
         </button>
         <button

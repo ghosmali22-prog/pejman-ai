@@ -105,7 +105,7 @@ export function Prompts() {
         <div ref={headRef} className="pt-6 md:pt-10">
           <span className="mb-4 inline-flex items-center gap-2 text-sm font-medium md:mb-6">
             <span className="size-2 rounded-full bg-lime-2" />
-            Free prompt library
+            Prompt library
           </span>
           <h2
             className="display flex items-center justify-center whitespace-nowrap text-[17.5vw] xl:text-[232px]"

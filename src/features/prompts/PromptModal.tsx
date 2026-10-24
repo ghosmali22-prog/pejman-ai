@@ -44,7 +44,7 @@ export function PromptModal() {
   }, [open, lenis])
 
   useEffect(() => {
-    document.title = prompt ? `${prompt.title} — Free AI prompt · PEJMAN AI` : DEFAULT_TITLE
+    document.title = prompt ? `${prompt.title} — AI prompt · PEJMAN AI` : DEFAULT_TITLE
   }, [prompt])
 
   return (
@@ -103,7 +103,7 @@ function PromptDialog({ prompt, onClose, goHome }: { prompt?: Prompt; onClose: (
     const url = promptUrl(prompt.slug)
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${prompt.title} — free AI prompt`, url })
+        await navigator.share({ title: `${prompt.title} — AI prompt`, url })
         return
       } catch {
         /* cancelled — fall through to copying the link */

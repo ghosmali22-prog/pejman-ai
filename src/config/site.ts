@@ -8,16 +8,16 @@ export const SITE_URL = 'https://ghosmali22-prog.github.io/pejman-ai'
  */
 export const defaultSettings: SiteSettings = {
   hero: {
-    headline: 'AI images, motion, websites & automations. Free prompts to start.',
+    headline: 'AI images, motion, websites & automations. Prompts to start.',
     subline:
-      'I create AI photos, motion videos, websites and automations for brands and creators — and share the prompts behind my work for free.',
+      'I create AI photos, motion videos, websites and automations for brands and creators — and share the prompts behind my work.',
     availability: 'Available 7 days a week',
     location: 'On-site in Bangkok · Remote worldwide',
     tools: ['Midjourney', 'Nano Banana', 'GPT Image', 'Kling', 'Veo', 'Flux', 'n8n'],
   },
   about: {
     label: 'About Pejman',
-    text: "I'm Pejman Ansaribarz, an AI creator based in Bangkok. I make AI photos and videos, motion videos that stop the scroll, modern websites and automations that quietly save hours every week — and I share the prompts behind my work for free. Brands, founders and creators bring me a goal; I bring the tools and the taste to make it real. I work seven days a week, remotely with clients worldwide or on-site here in Bangkok. Start with my free prompts, and when you're ready for something custom, let's build it together.",
+    text: "I'm Pejman Ansaribarz, an AI creator based in Bangkok. I make AI photos and videos, motion videos that stop the scroll, modern websites and automations that quietly save hours every week — and I share the prompts behind my work. Brands, founders and creators bring me a goal; I bring the tools and the taste to make it real. I work seven days a week, remotely with clients worldwide or on-site here in Bangkok. Start with my prompts, and when you're ready for something custom, let's build it together.",
   },
   services: {
     heading: 'What I can build for you',
@@ -77,7 +77,7 @@ export const defaultSettings: SiteSettings = {
     instagram: 'peji_org',
   },
   footer: {
-    newsletter: 'Get new free prompts every week',
+    newsletter: 'Get new prompts every week',
   },
 }
 
