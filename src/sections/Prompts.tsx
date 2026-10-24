@@ -53,12 +53,13 @@ export function Prompts() {
         },
         defaults: { ease: 'none' },
       })
+      const img = q('.inset-img')
       tl.fromTo(box, { scale: INSET_START }, { scale: 1 }, 0)
         .fromTo(q('.inset-left'), { x: gap }, { x: 0 }, 0)
         .fromTo(q('.inset-right'), { x: () => -gap() }, { x: 0 }, 0)
-        .fromTo(q('.inset-img'), { scale: 1.5 }, { scale: 1 }, 0)
+      if (img.length) tl.fromTo(img, { scale: 1.5 }, { scale: 1 }, 0)
     },
-    { scope: headRef, dependencies: [level, inset?.id] },
+    { scope: headRef, dependencies: [level, inset?.id, loading] },
   )
 
   // Cards fade + rise in batches; images drift inside their frames.
@@ -71,7 +72,7 @@ export function Prompts() {
           ScrollTrigger.create({ trigger: card, start: 'top 65%', end: 'bottom 35%', toggleClass: 'is-active' }),
         )
       }
-      if (level === 'none') return
+      if (level === 'none' || cards.length === 0) return
       gsap.set(cards, { autoAlpha: 0, y: 60 })
       ScrollTrigger.batch(cards, {
         start: 'top 92%',

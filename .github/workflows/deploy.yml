@@ -1,6 +1,10 @@
 # Builds the site and publishes it to GitHub Pages on every push to main.
-# Needs two repository secrets: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-# (Settings → Secrets and variables → Actions). Without them the site builds in demo mode.
+#
+# Supabase connection: the URL and the *publishable* key below are public by design —
+# they ship inside the website's JavaScript anyway. The database is protected by
+# Row Level Security (see supabase/migrations), not by hiding this key.
+# Repository secrets with the same names, if you add them, take priority.
+# NEVER put the service_role / secret key here: the "Block leaked secret keys" step fails the build if you do.
 name: Deploy to GitHub Pages
 
 on:
@@ -30,14 +34,27 @@ jobs:
 
       - run: npm ci
 
+      - name: Block leaked secret keys
+        run: |
+          if git grep -nIE 'sb_secret_[A-Za-z0-9_-]{10,}|service_role"?\s*[:=]\s*"?eyJ|GOCSPX-[A-Za-z0-9_-]{10,}' -- . ':!package-lock.json'; then
+            echo "::error::A secret key was found in the repository. Remove it and rotate it in Supabase/Google."
+            exit 1
+          fi
+
       - name: Check database security rules
         run: npm run test:db
 
       - name: Build
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://icoiyuifywvtrlfagkdz.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_gFpwndMFKSylPYd5y-r6qA_25mm-uKq' }}
+
+      - name: Check the built site never contains a secret key
+        run: |
+          if grep -rlE 'sb_secret_|"role":"service_role"|GOCSPX-' dist; then
+            echo "::error::The build contains a secret key." && exit 1
+          fi
 
       - uses: actions/configure-pages@v5
 
