@@ -61,13 +61,58 @@ export function Hero() {
         ease: 'none',
         scrollTrigger: { trigger: stage, start: 'top top', end: 'bottom top', scrub: true },
       })
-      q('.hero-card-wrap').forEach((card, i) => {
-        gsap.to(card, {
-          y: -(20 + (i % 3) * 18),
-          ease: 'none',
-          scrollTrigger: { trigger: q('.hero-cards')[0], start: 'top bottom', end: 'bottom top', scrub: true },
+    },
+    { scope: ref, dependencies: [level] },
+  )
+
+  // Cards row. Desktop: gentle parallax. Phones/tablets: the row is pinned and slides
+  // sideways while you scroll down, then the page continues — no manual swiping needed.
+  useGSAP(
+    () => {
+      if (level === 'none') return
+      const q = gsap.utils.selector(ref)
+      const wrap = q('.hero-cards')[0] as HTMLElement
+      const row = q('.hero-row')[0] as HTMLElement
+      if (!wrap || !row) return
+      const mm = gsap.matchMedia()
+
+      mm.add('(min-width: 768px)', () => {
+        if (level !== 'full') return
+        q('.hero-card-wrap').forEach((card, i) => {
+          gsap.to(card, {
+            y: -(20 + (i % 3) * 18),
+            ease: 'none',
+            scrollTrigger: { trigger: wrap, start: 'top bottom', end: 'bottom top', scrub: true },
+          })
         })
       })
+
+      mm.add('(max-width: 767px)', () => {
+        row.style.overflowX = 'visible'
+        row.style.scrollSnapType = 'none'
+        // +16 keeps a little breathing room after the last card.
+        const distance = () => Math.max(0, row.scrollWidth - wrap.clientWidth + 16)
+        gsap.to(row, {
+          x: () => -distance(),
+          ease: 'none',
+          scrollTrigger: {
+            trigger: wrap,
+            start: 'center center',
+            end: () => `+=${distance()}`,
+            pin: true,
+            scrub: 0.6,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+            refreshPriority: 10,
+          },
+        })
+        return () => {
+          row.style.overflowX = ''
+          row.style.scrollSnapType = ''
+        }
+      })
+
+      return () => mm.revert()
     },
     { scope: ref, dependencies: [level] },
   )
@@ -127,7 +172,7 @@ export function Hero() {
 
       {/* Bento row */}
       <div className="hero-cards relative z-10 mx-auto mt-12 max-w-7xl pb-24 md:mt-16 md:pb-32">
-        <div className="no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto px-4 pb-2 sm:px-6 md:grid md:grid-cols-5 md:gap-4 md:overflow-visible md:px-8">
+        <div className="hero-row no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto px-4 pb-2 sm:px-6 md:grid md:grid-cols-5 md:gap-4 md:overflow-visible md:px-8">
           {/* Featured image */}
           <div className="hero-card-wrap w-[64vw] shrink-0 snap-start sm:w-[40vw] md:w-auto">
             <Link
