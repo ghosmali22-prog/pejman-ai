@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Newspaper,
   Plus,
   Settings,
   Tags,
@@ -35,7 +36,7 @@ export function AdminLayout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
   // Form pages have their own big Save button at the bottom, so the tab bar steps aside.
-  const formPage = /^\/admin\/(prompts\/[^/]+|settings)\/?$/.test(location.pathname)
+  const formPage = /^\/admin\/((prompts|blog)\/[^/]+|settings)\/?$/.test(location.pathname)
 
   useEffect(() => {
     setMoreOpen(false)
@@ -46,6 +47,7 @@ export function AdminLayout() {
     { to: '/admin', label: t.dashboard, Icon: LayoutDashboard },
     { to: '/admin/prompts', label: t.prompts, Icon: ImageIcon },
     { to: '/admin/categories', label: t.categories, Icon: Tags },
+    { to: '/admin/blog', label: t.blog, Icon: Newspaper },
   ]
   const manage: Item[] = [
     { to: '/admin/messages', label: t.messages, Icon: Inbox, badge: unread },

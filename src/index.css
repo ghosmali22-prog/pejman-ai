@@ -121,3 +121,137 @@ html[data-motion='lite'] [data-theme='light'] {
 .prompt-card.is-active .prompt-color {
   opacity: 1;
 }
+
+/* Persian text: Vazirmatn, and no negative letter-spacing (it breaks the joined letters). */
+.fa-text,
+.fa-text * {
+  font-family: 'Vazirmatn Variable', var(--font-sans);
+  letter-spacing: 0 !important;
+}
+
+/* Blog article body (also used by the editor preview in the admin panel). */
+.post-body {
+  font-size: 1.125rem;
+  line-height: 1.8;
+  overflow-wrap: break-word;
+}
+.post-body.fa-text {
+  line-height: 2.05;
+}
+.post-body > * + * {
+  margin-top: 1.3em;
+}
+.post-body h2,
+.post-body h3,
+.post-body h4 {
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  scroll-margin-top: 6rem;
+}
+.post-body h2 {
+  font-size: 1.85em;
+  margin-top: 2em;
+}
+.post-body h3 {
+  font-size: 1.4em;
+  margin-top: 1.7em;
+}
+.post-body h4 {
+  font-size: 1.15em;
+  margin-top: 1.5em;
+}
+.post-body :is(h2, h3, h4) + * {
+  margin-top: 0.7em;
+}
+.post-body a {
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-color: var(--color-lime-2);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.post-body a:hover {
+  text-decoration-color: currentColor;
+}
+.post-body strong {
+  font-weight: 650;
+}
+.post-body ul,
+.post-body ol {
+  padding-inline-start: 1.4em;
+}
+.post-body ul {
+  list-style: disc;
+}
+.post-body ol {
+  list-style: decimal;
+}
+.post-body li + li {
+  margin-top: 0.45em;
+}
+.post-body li::marker {
+  color: color-mix(in srgb, currentColor 45%, transparent);
+}
+.post-body blockquote {
+  border-inline-start: 3px solid var(--color-lime);
+  padding-inline-start: 1.2em;
+  font-size: 1.2em;
+  font-weight: 500;
+  line-height: 1.6;
+}
+.post-body code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: rgb(127 127 127 / 0.14);
+  padding: 0.15em 0.4em;
+  border-radius: 0.4em;
+}
+.post-body pre {
+  direction: ltr;
+  text-align: left;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  padding: 1.2em 1.4em;
+  border-radius: 1.2em;
+  overflow-x: auto;
+  font-size: 0.85em;
+  line-height: 1.7;
+}
+.post-body pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+.post-body img {
+  width: 100%;
+  height: auto;
+  border-radius: 1.5rem;
+}
+.post-body figure figcaption {
+  margin-top: 0.7em;
+  text-align: center;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+.post-body hr {
+  border: 0;
+  border-top: 1px solid rgb(127 127 127 / 0.25);
+  margin-block: 2.5em;
+}
+.post-body table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.post-body th,
+.post-body td {
+  border-bottom: 1px solid rgb(127 127 127 / 0.2);
+  padding: 0.6em 0.8em;
+  text-align: start;
+}
+.post-body th {
+  font-weight: 650;
+}

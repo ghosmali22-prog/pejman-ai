@@ -9,6 +9,7 @@ import { InstagramIcon, TelegramIcon, WhatsAppIcon } from '../ui/BrandIcons'
 
 const LINKS: { id: SectionId; label: string }[] = [
   { id: 'prompts', label: 'Prompts' },
+  { id: 'blog', label: 'Blog' },
   { id: 'about', label: 'About' },
   { id: 'services', label: 'Services' },
   { id: 'contact', label: 'Contact' },

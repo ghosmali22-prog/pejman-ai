@@ -1,8 +1,8 @@
 import { defaultSettings } from '../../config/site'
-import { sampleCategories, samplePrompts } from '../../data/samples'
+import { sampleCategories, samplePosts, samplePrompts } from '../../data/samples'
 import { IMAGE_BUCKET, supabase } from '../../lib/supabase'
 import { mergeSettings } from '../../services/settings'
-import type { Category, ContactMessage, DailyCopies, PromptRow, SiteSettings, Subscriber } from '../../types'
+import type { Category, ContactMessage, DailyCopies, PostRow, PromptRow, SiteSettings, Subscriber } from '../../types'
 import type { CompressedImage } from './image'
 
 /**
@@ -20,8 +20,14 @@ const demo = !supabase
 const days = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
 const uid = () => crypto.randomUUID()
 
+export type PostDraft = Omit<PostRow, 'id' | 'created_at' | 'published_at' | 'cover_url'> & {
+  id?: string
+  cover_url?: string
+}
+
 const store = {
   prompts: samplePrompts.map<PromptRow>((p, i) => ({ ...p, created_at: days(i * 3) })),
+  posts: samplePosts.map<PostRow>((p) => ({ ...p, content: p.excerpt })),
   categories: [...sampleCategories],
   messages: [
     {
@@ -119,7 +125,13 @@ export async function uploadPromptImage(img: CompressedImage): Promise<UploadedI
       image_height: img.height,
     }
   }
-  return uploadImage(img)
+  return uploadImage(img, 'prompts')
+}
+
+/** Uploads a compressed blog image (cover or inline picture) and returns its public URL and size. */
+export async function uploadBlogImage(img: CompressedImage): Promise<UploadedImage> {
+  if (demo) return uploadPromptImage(img)
+  return uploadImage(img, 'blog')
 }
 
 /** Removes an uploaded image that ended up unused (photo replaced, or editor left without saving). */
@@ -127,8 +139,8 @@ export function discardUpload(img?: UploadedImage | null) {
   if (img?.image_path) removeImage(img.image_path).catch(() => {})
 }
 
-async function uploadImage(img: CompressedImage): Promise<UploadedImage> {
-  const path = `prompts/${uid()}.${img.ext}`
+async function uploadImage(img: CompressedImage, folder: 'prompts' | 'blog'): Promise<UploadedImage> {
+  const path = `${folder}/${uid()}.${img.ext}`
   const { error } = await sb()
     .storage.from(IMAGE_BUCKET)
     .upload(path, img.blob, { contentType: img.blob.type, cacheControl: '31536000', upsert: false })
@@ -224,6 +236,71 @@ export const prompts = {
       return
     }
     await Promise.all(changed.map((r) => run(sb().from('prompts').update({ position: r.next }).eq('id', r.id))))
+  },
+}
+
+// ---------------------------------------------------------------- blog posts
+export const posts = {
+  async list(): Promise<PostRow[]> {
+    if (demo) return [...store.posts].sort((a, b) => b.created_at.localeCompare(a.created_at))
+    return run(sb().from('posts').select('*').order('created_at', { ascending: false }))
+  },
+
+  /** Creates or updates a post. The cover is uploaded beforehand; a replaced cover file is deleted. */
+  async save(draft: PostDraft, opts: { cover?: UploadedImage | null; existing?: PostRow | null } = {}) {
+    const { cover, existing } = opts
+    const { id, ...fields } = draft
+    const row = {
+      ...fields,
+      ...(cover
+        ? {
+            cover_url: cover.image_url,
+            cover_path: cover.image_path,
+            cover_width: cover.image_width,
+            cover_height: cover.image_height,
+          }
+        : {}),
+    }
+
+    if (demo) {
+      const current = id ? store.posts.find((p) => p.id === id) : null
+      if (current) {
+        if (row.published && !current.published_at) current.published_at = new Date().toISOString()
+        return Object.assign(current, row)
+      }
+      const now = new Date().toISOString()
+      const created = { cover_url: '', ...row, id: uid(), created_at: now, published_at: row.published ? now : null }
+      store.posts.push(created as PostRow)
+      return created as PostRow
+    }
+
+    if (id) {
+      const saved = await run<PostRow>(sb().from('posts').update(row).eq('id', id).select().single())
+      if (cover && existing?.cover_path && existing.cover_path !== saved.cover_path) {
+        removeImage(existing.cover_path).catch(() => {})
+      }
+      return saved
+    }
+    return run<PostRow>(sb().from('posts').insert(row).select().single())
+  },
+
+  async update(id: string, patch: Partial<PostRow>) {
+    if (demo) {
+      const p = store.posts.find((x) => x.id === id)
+      if (p && patch.published && !p.published_at) p.published_at = new Date().toISOString()
+      Object.assign(p ?? {}, patch)
+      return
+    }
+    await run(sb().from('posts').update(patch).eq('id', id))
+  },
+
+  async remove(row: PostRow) {
+    if (demo) {
+      store.posts = store.posts.filter((p) => p.id !== row.id)
+      return
+    }
+    await run(sb().from('posts').delete().eq('id', row.id))
+    await removeImage(row.cover_path).catch(() => {})
   },
 }
 

@@ -103,3 +103,33 @@ export interface DailyCopies {
   day: string
   copies: number
 }
+
+/** A published blog post as the public site reads it. */
+export interface Post {
+  id: string
+  slug: string
+  title: string
+  /** Short summary for cards, Google and social previews. */
+  excerpt: string
+  /** Rendered HTML of the post body (rendered from Markdown in the admin panel). */
+  content_html: string
+  lang: 'en' | 'fa'
+  cover_url: string
+  cover_width?: number | null
+  cover_height?: number | null
+  cover_alt: string
+  tags: string[]
+  seo_title?: string | null
+  seo_description?: string | null
+  reading_minutes: number
+  published: boolean
+  published_at: string | null
+  created_at: string
+  updated_at?: string
+}
+
+/** Post row as stored in the database (includes the Markdown source and admin-only fields). */
+export interface PostRow extends Post {
+  content: string
+  cover_path?: string | null
+}

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { blogPages } from './build/blogPages.ts'
 
 /**
  * Adds a strict Content-Security-Policy to the built index.html.
@@ -85,7 +86,13 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   return {
     base: process.env.VITE_BASE ?? '/pejman-ai/',
-    plugins: [react(), tailwindcss(), contentSecurityPolicy(env.VITE_SUPABASE_URL), adminEntry()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      contentSecurityPolicy(env.VITE_SUPABASE_URL),
+      adminEntry(),
+      blogPages({ supabaseUrl: env.VITE_SUPABASE_URL, supabaseKey: env.VITE_SUPABASE_ANON_KEY }),
+    ],
     build: {
       rollupOptions: {
         output: {

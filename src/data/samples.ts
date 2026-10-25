@@ -1,4 +1,4 @@
-import type { Category, Prompt } from '../types'
+import type { Category, Post, Prompt } from '../types'
 
 /**
  * Demo content shown ONLY while Supabase is not connected yet.
@@ -157,5 +157,56 @@ export const samplePrompts: Prompt[] = [
     position: 8,
     copy_count: 33,
     created_at: '2026-10-13T10:00:00Z',
+  },
+]
+
+export const samplePosts: Post[] = [
+  {
+    id: 'b1',
+    slug: 'how-i-write-ai-image-prompts',
+    title: 'How I write AI image prompts that look like real photography',
+    excerpt:
+      'The simple structure I use for every prompt: subject, light, lens and mood. Copy it, swap the details and get studio-quality AI photos.',
+    content_html: `<p>Most AI images look fake for one reason: the prompt describes <strong>what</strong> is in the picture, but not <strong>how</strong> it was photographed.</p>
+<h2 id="the-four-parts">The four parts of every prompt</h2>
+<ol><li><strong>Subject</strong> — who or what, and what they wear or do.</li><li><strong>Light</strong> — softbox, golden hour, neon, hard flash.</li><li><strong>Lens</strong> — 85mm portrait, 24mm wide, macro.</li><li><strong>Mood</strong> — editorial, cinematic, minimal.</li></ol>
+<blockquote><p>Describe the camera, not just the scene.</p></blockquote>
+<h2 id="an-example">An example</h2>
+<pre><code>black and white studio portrait, oversized black puffer jacket, chrome sunglasses, 85mm lens, softbox, seamless white backdrop --ar 4:5</code></pre>
+<p>Want more? Browse the <a href="/pejman-ai/prompts">prompt library</a> and copy any prompt in one tap.</p>`,
+    lang: 'en',
+    cover_url: img('portrait'),
+    cover_width: 800,
+    cover_height: 1000,
+    cover_alt: 'Black and white AI studio portrait with chrome sunglasses',
+    tags: ['prompts', 'midjourney', 'photography'],
+    seo_title: null,
+    seo_description: null,
+    reading_minutes: 4,
+    published: true,
+    published_at: '2026-10-20T09:00:00Z',
+    created_at: '2026-10-20T09:00:00Z',
+  },
+  {
+    id: 'b2',
+    slug: 'ai-product-photos-for-small-brands',
+    title: 'عکس محصول با هوش مصنوعی برای برندهای کوچک',
+    excerpt: 'چطور بدون استودیو و عکاس، برای محصولتان عکس‌های تبلیغاتی حرفه‌ای بسازید.',
+    content_html: `<p>برای یک برند کوچک، عکاسی محصول معمولاً گران و زمان‌بر است. با هوش مصنوعی می‌توانید در چند دقیقه ده‌ها عکس مختلف بسازید.</p>
+<h2 id="section-1">از کجا شروع کنیم؟</h2>
+<ul><li>یک عکس تمیز از محصول روی زمینهٔ ساده بگیرید.</li><li>نور و فضای دلخواه را در پرامپت توضیح دهید.</li><li>چند نسخه بسازید و بهترین را انتخاب کنید.</li></ul>
+<p>اگر کمک خواستید، از بخش تماس پیام بدهید.</p>`,
+    lang: 'fa',
+    cover_url: img('product'),
+    cover_width: 800,
+    cover_height: 1000,
+    cover_alt: 'عکس محصول ساخته‌شده با هوش مصنوعی',
+    tags: ['product', 'brand'],
+    seo_title: null,
+    seo_description: null,
+    reading_minutes: 3,
+    published: true,
+    published_at: '2026-10-12T09:00:00Z',
+    created_at: '2026-10-12T09:00:00Z',
   },
 ]

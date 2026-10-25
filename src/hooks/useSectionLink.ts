@@ -2,11 +2,11 @@ import { useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMotion } from '../providers/MotionProvider'
 
-export type SectionId = 'top' | 'about' | 'prompts' | 'services' | 'contact'
+export type SectionId = 'top' | 'about' | 'prompts' | 'blog' | 'services' | 'contact'
 
 /**
  * Smooth-scrolls to a home-page section, navigating home first when needed.
- * "prompts" opens the separate prompt library page.
+ * "prompts" and "blog" open their own pages.
  */
 export function useSectionLink() {
   const { scrollTo } = useMotion()
@@ -15,8 +15,8 @@ export function useSectionLink() {
 
   return useCallback(
     (id: SectionId) => {
-      if (id === 'prompts') {
-        navigate('/prompts')
+      if (id === 'prompts' || id === 'blog') {
+        navigate(`/${id}`)
         return
       }
       if (location.pathname !== '/') {
