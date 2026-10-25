@@ -1,5 +1,6 @@
 import { ArrowRight, Check, Loader2, Mail } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { contactLinks } from '../../config/site'
 import { useSectionLink, type SectionId } from '../../hooks/useSectionLink'
 import { useSiteData } from '../../providers/SiteDataProvider'
@@ -7,7 +8,7 @@ import { subscribeNewsletter } from '../../services/contact'
 import { InstagramIcon, TelegramIcon, WhatsAppIcon } from '../ui/BrandIcons'
 
 export function Footer() {
-  const { settings, categories } = useSiteData()
+  const { settings, categories, prompts } = useSiteData()
   const go = useSectionLink()
   const links = contactLinks(settings.contact)
   const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
@@ -101,17 +102,19 @@ export function Footer() {
             <div>
               <p className="mb-4 text-sm text-paper/45">Categories</p>
               <ul className="flex flex-col gap-2.5">
-                {categories.slice(0, 5).map((c) => (
-                  <li key={c.slug}>
-                    <button
-                      type="button"
-                      onClick={() => go('prompts')}
-                      className="text-[15px] text-paper/85 transition-colors hover:text-lime"
-                    >
-                      {c.name}
-                    </button>
-                  </li>
-                ))}
+                {categories
+                  .filter((c) => !prompts.length || prompts.some((p) => p.category === c.slug))
+                  .slice(0, 5)
+                  .map((c) => (
+                    <li key={c.slug}>
+                      <Link
+                        to={`/prompts?c=${c.slug}`}
+                        className="text-[15px] text-paper/85 transition-colors hover:text-lime"
+                      >
+                        {c.name}
+                      </Link>
+                    </li>
+                  ))}
               </ul>
             </div>
             <div className="col-span-2 sm:col-span-1">

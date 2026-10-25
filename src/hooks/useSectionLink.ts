@@ -4,7 +4,10 @@ import { useMotion } from '../providers/MotionProvider'
 
 export type SectionId = 'top' | 'about' | 'prompts' | 'services' | 'contact'
 
-/** Smooth-scrolls to a home-page section, navigating home first when needed. */
+/**
+ * Smooth-scrolls to a home-page section, navigating home first when needed.
+ * "prompts" opens the separate prompt library page.
+ */
 export function useSectionLink() {
   const { scrollTo } = useMotion()
   const navigate = useNavigate()
@@ -12,12 +15,14 @@ export function useSectionLink() {
 
   return useCallback(
     (id: SectionId) => {
-      const onHome = location.pathname === '/' || location.pathname.startsWith('/p/')
-      if (!onHome) {
+      if (id === 'prompts') {
+        navigate('/prompts')
+        return
+      }
+      if (location.pathname !== '/') {
         navigate('/', { state: { scrollTo: id } })
         return
       }
-      if (location.pathname !== '/') navigate('/', { replace: true })
       if (id === 'top') scrollTo(0)
       else scrollTo(`#${id}`, { offset: -24 })
     },

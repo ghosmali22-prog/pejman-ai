@@ -105,14 +105,6 @@ export function SettingsPage() {
             {txt('hero', 'availability', t.availability)}
             {txt('hero', 'location', t.location)}
           </div>
-          <Field label={t.tools}>
-            <Textarea
-              dir="ltr"
-              rows={4}
-              value={s.hero.tools.join('\n')}
-              onChange={(e) => up('hero', 'tools', lines(e.target.value))}
-            />
-          </Field>
         </Section>
 
         <Section title={t.about}>

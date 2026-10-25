@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ThemeBackdrop } from '../components/motion/ThemeBackdrop'
-import { PromptModal } from '../features/prompts/PromptModal'
 import type { SectionId } from '../hooks/useSectionLink'
 import { ScrollTrigger } from '../lib/motion'
 import { useMotion } from '../providers/MotionProvider'
@@ -10,10 +9,10 @@ import { About } from '../sections/About'
 import { Contact } from '../sections/Contact'
 import { Hero } from '../sections/Hero'
 import { Marquee } from '../sections/Marquee'
-import { Prompts } from '../sections/Prompts'
+import { PromptShowcase } from '../sections/PromptShowcase'
 import { Services } from '../sections/Services'
 
-/** The one-page site. Also stays mounted underneath /p/:slug so prompts open as an overlay. */
+/** The one-page home site. The full prompt library lives on its own page (/prompts). */
 export function HomePage() {
   const { loading, prompts } = useSiteData()
   const { scrollTo } = useMotion()
@@ -44,12 +43,11 @@ export function HomePage() {
       <main>
         <Hero />
         <About />
-        <Prompts />
+        <PromptShowcase />
         <Services />
         <Contact />
         <Marquee />
       </main>
-      <PromptModal />
     </>
   )
 }

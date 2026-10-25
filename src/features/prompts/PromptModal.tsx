@@ -30,7 +30,7 @@ export function PromptModal() {
 
   const close = () => {
     if ((location.state as { modal?: boolean } | null)?.modal) navigate(-1)
-    else navigate('/', { replace: true })
+    else navigate('/prompts', { replace: true })
   }
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export function PromptModal() {
           key={prompt?.id ?? 'missing'}
           prompt={prompt}
           onClose={close}
-          goHome={() => navigate('/', { replace: true })}
+          goHome={() => navigate('/prompts', { replace: true })}
         />
       )}
     </AnimatePresence>

@@ -11,7 +11,6 @@ import { useMotion } from '../providers/MotionProvider'
 import { useSiteData } from '../providers/SiteDataProvider'
 
 const NAME = 'PEJMAN AI'
-const BARS = [38, 52, 44, 66, 58, 80, 72, 96]
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
@@ -172,18 +171,12 @@ export function Hero() {
 
       {/* Bento row */}
       <div className="hero-cards relative z-10 mx-auto mt-12 max-w-7xl pb-24 md:mt-16 md:pb-32">
-        <div className="hero-row no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto px-4 pb-2 sm:px-6 md:grid md:grid-cols-5 md:gap-4 md:overflow-visible md:px-8">
+        <div className="hero-row no-scrollbar flex snap-x snap-mandatory items-end gap-3 overflow-x-auto px-4 pb-2 sm:px-6 md:mx-auto md:grid md:max-w-5xl md:grid-cols-3 md:gap-5 md:overflow-visible md:px-8">
           {/* Featured image */}
           <div className="hero-card-wrap w-[64vw] shrink-0 snap-start sm:w-[40vw] md:w-auto">
             <Link
-              to={featured ? `/p/${featured.slug}` : '/'}
-              state={{ modal: true }}
+              to={featured ? `/p/${featured.slug}` : '/prompts'}
               data-cursor="view"
-              onClick={(e) => {
-                if (featured) return
-                e.preventDefault()
-                go('prompts')
-              }}
               className="hero-card group relative block h-[300px] overflow-hidden rounded-[28px] bg-ink-3 md:h-[340px]"
             >
               <img
@@ -211,42 +204,6 @@ export function Hero() {
               <div>
                 <p className="display text-[64px] leading-none">{count > 0 ? `${count}+` : 'New'}</p>
                 <p className="mt-2 text-sm font-medium">prompts, ready to copy</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Tools */}
-          <div className="hero-card-wrap w-[60vw] shrink-0 snap-start sm:w-[36vw] md:w-auto">
-            <div className="hero-card flex h-[270px] flex-col justify-between rounded-[28px] bg-ink-2 p-5 ring-1 ring-white/8 md:h-[300px]">
-              <span className="text-sm text-mute">Tools I use</span>
-              <ul className="flex flex-wrap gap-1.5">
-                {settings.hero.tools.map((t) => (
-                  <li
-                    key={t}
-                    className="rounded-full bg-white/8 px-3 py-1.5 text-[13px] font-medium text-paper ring-1 ring-white/10"
-                  >
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Chart */}
-          <div className="hero-card-wrap w-[52vw] shrink-0 snap-start sm:w-[32vw] md:w-auto">
-            <div className="hero-card flex h-[220px] flex-col justify-between rounded-[28px] bg-ink-2 p-5 ring-1 ring-white/8 md:h-[236px]">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-mute">New every week</span>
-                <span className="font-semibold text-lime">↑</span>
-              </div>
-              <div className="flex h-24 items-end gap-1.5">
-                {BARS.map((h, i) => (
-                  <span
-                    key={i}
-                    className={`block flex-1 origin-bottom rounded-t-md ${i === BARS.length - 1 ? 'bg-lime' : 'bg-lime/35'}`}
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
               </div>
             </div>
           </div>
