@@ -1,9 +1,11 @@
 import { useGSAP } from '@gsap/react'
 import { ArrowRight } from 'lucide-react'
-import { useRef } from 'react'
+import { lazy, Suspense, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import photo1600 from '../assets/hero/pejman-1600.webp'
 import photo900 from '../assets/hero/pejman-900.webp'
+import type { HudHandle } from '../components/motion/ParticlePortrait'
+import { PortraitHud } from '../components/motion/PortraitHud'
 import { RevealText } from '../components/motion/RevealText'
 import { useSectionLink } from '../hooks/useSectionLink'
 import { gsap } from '../lib/motion'
@@ -14,9 +16,19 @@ const NAME = 'PEJMAN AI'
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
+// three.js is heavy — load the particle portrait only when it will actually run.
+const ParticlePortrait = lazy(() =>
+  import('../components/motion/ParticlePortrait').then((m) => ({ default: m.ParticlePortrait })),
+)
+
 export function Hero() {
   const ref = useRef<HTMLElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const photoRef = useRef<HTMLImageElement>(null)
+  const hudRef = useRef<HudHandle>(null)
   const { level, introDone } = useMotion()
+  // Full motion only: the photo is redrawn as particles, the <img> stays as fallback and layout box.
+  const [particlesReady, setParticlesReady] = useState(false)
   const { settings, prompts } = useSiteData()
   const go = useSectionLink()
   const featured = prompts.find((p) => p.featured) ?? prompts[0]
@@ -120,7 +132,7 @@ export function Hero() {
     <section ref={ref} id="top" data-theme="dark" className="relative overflow-hidden bg-ink text-paper">
       <div className="relative">
         {/* Stage: giant name behind, photo in front */}
-        <div className="hero-stage relative h-[68svh] min-h-[460px] sm:h-[80svh] md:h-[100svh] md:min-h-[640px]">
+        <div ref={stageRef} className="hero-stage relative h-[68svh] min-h-[460px] sm:h-[80svh] md:h-[100svh] md:min-h-[640px]">
           <div
             aria-hidden="true"
             className="hero-name pointer-events-none absolute inset-x-0 top-[19%] flex select-none justify-center sm:top-[18%] md:top-[16%]"
@@ -139,18 +151,38 @@ export function Hero() {
           </div>
 
           <div className="hero-photo-wrap absolute inset-x-0 bottom-0 flex h-[76%] justify-center sm:h-[80%] md:h-[86%]">
-            <img
-              className="hero-photo h-full w-auto max-w-none select-none object-contain object-bottom"
-              src={photo1600}
-              srcSet={`${photo900} 900w, ${photo1600} 1600w`}
-              sizes="(max-width: 768px) 140vw, 75vw"
-              width={1600}
-              height={1183}
-              alt="Pejman Ansaribarz, founder of PEJMAN AI, in black sunglasses and a black puffer jacket"
-              fetchPriority="high"
-              decoding="async"
-              draggable={false}
-            />
+            {level === 'full' && (
+              <Suspense fallback={null}>
+                <ParticlePortrait
+                  src={photo900}
+                  img={photoRef}
+                  trigger={stageRef}
+                  play={introDone}
+                  hud={hudRef}
+                  onReady={() => setParticlesReady(true)}
+                />
+              </Suspense>
+            )}
+            <div className={`relative h-full ${particlesReady ? 'opacity-0' : ''}`}>
+              <img
+                ref={photoRef}
+                className="hero-photo h-full w-auto max-w-none select-none object-contain object-bottom"
+                src={photo1600}
+                srcSet={`${photo900} 900w, ${photo1600} 1600w`}
+                sizes="(max-width: 768px) 140vw, 75vw"
+                width={1600}
+                height={1183}
+                alt="Pejman Ansaribarz, founder of PEJMAN AI, in black sunglasses and a black puffer jacket"
+                fetchPriority="high"
+                decoding="async"
+                draggable={false}
+              />
+            </div>
+            {particlesReady && (
+              <div className="pointer-events-none absolute inset-y-0 left-1/2 aspect-[1600/1183] h-full -translate-x-1/2">
+                <PortraitHud ref={hudRef} />
+              </div>
+            )}
           </div>
 
           {/* Blend the bottom edge of the photo into the page */}
