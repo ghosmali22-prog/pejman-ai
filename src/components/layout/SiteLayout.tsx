@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import { useLayoutEffect } from 'react'
 import { useLocation, useOutlet } from 'react-router-dom'
 import { ScrollTrigger } from '../../lib/motion'
 import { useMotion } from '../../providers/MotionProvider'
@@ -16,10 +17,16 @@ export function SiteLayout() {
   const { scrollTo, level } = useMotion()
   const key = pageKey(location.pathname)
 
-  // Once the old page has faded out, start the new one at the top
-  // (opening/closing a prompt overlay keeps the same page, so it never scrolls).
-  const onPageSwap = () => {
+  // Start every new page at the top (opening/closing a prompt overlay keeps the same page).
+  // Done before the old page fades, when it is gone, and again once the new page is in —
+  // iPhone Safari can otherwise keep the old position and land at the bottom of the new page.
+  const toTop = () => {
+    ScrollTrigger.clearScrollMemory('manual')
+    window.scrollTo(0, 0)
     scrollTo(0, { immediate: true })
+  }
+  const onPageSwap = () => {
+    toTop()
     requestAnimationFrame(() => ScrollTrigger.refresh())
   }
 
@@ -35,6 +42,7 @@ export function SiteLayout() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
         >
+          <PageTop toTop={toTop} />
           {outlet}
         </motion.div>
       </AnimatePresence>
@@ -42,4 +50,25 @@ export function SiteLayout() {
       <CustomCursor />
     </>
   )
+}
+
+/** Runs once when a page mounts: snaps to the top, then once more after layout settles. */
+function PageTop({ toTop }: { toTop: () => void }) {
+  const location = useLocation()
+  useLayoutEffect(() => {
+    // Arriving with a section to jump to (e.g. "About" from the library): HomePage handles it.
+    if ((location.state as { scrollTo?: string } | null)?.scrollTo) return
+    toTop()
+    const a = requestAnimationFrame(() => {
+      toTop()
+    })
+    const t = window.setTimeout(toTop, 120)
+    return () => {
+      cancelAnimationFrame(a)
+      window.clearTimeout(t)
+    }
+    // Only on mount of the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return null
 }

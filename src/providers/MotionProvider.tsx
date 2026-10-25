@@ -48,7 +48,7 @@ export function MotionProvider({ children }: { children: ReactNode }) {
       scrollTo: (target, opts = {}) => {
         const offset = opts.offset ?? 0
         if (lenis) {
-          lenis.scrollTo(target, { offset, immediate: opts.immediate, duration: 1.4 })
+          lenis.scrollTo(target, { offset, immediate: opts.immediate, duration: 1.4, force: true })
           return
         }
         const el = typeof target === 'string' ? document.querySelector<HTMLElement>(target) : target

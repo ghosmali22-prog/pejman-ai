@@ -3,6 +3,10 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
 gsap.registerPlugin(ScrollTrigger)
 
+// Phones resize the viewport when the browser toolbar slides in/out; refreshing on that
+// makes ScrollTrigger jump back to an old scroll position. Real orientation changes still refresh.
+ScrollTrigger.config({ ignoreMobileResize: true })
+
 /** Calm, premium defaults for every tween on the site. */
 gsap.defaults({ ease: 'expo.out', duration: 1 })
 
