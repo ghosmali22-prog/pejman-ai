@@ -1,4 +1,5 @@
-# Builds the site and publishes it to GitHub Pages on every push to main.
+# Builds the site and publishes it to GitHub Pages on every push to main,
+# and once an hour so new blog posts get their own prerendered page for Google.
 #
 # Supabase connection: the URL and the *publishable* key below are public by design —
 # they ship inside the website's JavaScript anyway. The database is protected by
@@ -10,6 +11,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '23 * * * *'
   workflow_dispatch:
 
 permissions:

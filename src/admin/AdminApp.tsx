@@ -11,6 +11,8 @@ import { CategoriesPage } from './pages/CategoriesPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { MessagesPage } from './pages/MessagesPage'
+import { PostEditorPage } from './pages/PostEditorPage'
+import { PostsPage } from './pages/PostsPage'
 import { PromptEditorPage } from './pages/PromptEditorPage'
 import { PromptsPage } from './pages/PromptsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -96,6 +98,9 @@ function Shell() {
                 <Route path="prompts/new" element={<PromptEditorPage />} />
                 <Route path="prompts/:id" element={<PromptEditorPage />} />
                 <Route path="categories" element={<CategoriesPage />} />
+                <Route path="blog" element={<PostsPage />} />
+                <Route path="blog/new" element={<PostEditorPage />} />
+                <Route path="blog/:id" element={<PostEditorPage />} />
                 <Route path="messages" element={<MessagesPage />} />
                 <Route path="subscribers" element={<SubscribersPage />} />
                 <Route path="settings" element={<SettingsPage />} />

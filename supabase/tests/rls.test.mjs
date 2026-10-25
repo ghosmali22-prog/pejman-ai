@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 // Runs the migration in an in-memory Postgres (PGlite) with small stand-ins for Supabase's
 // auth and storage schemas, then checks every Row Level Security rule as visitor / stranger / admin.
 // Usage: npm run test:db
-const MIGRATION = new URL('../migrations/001_init.sql', import.meta.url)
+const MIGRATIONS = ['001_init.sql', '002_blog.sql'].map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'))
 const db = new PGlite()
 const stub = `
 create role anon nologin; create role authenticated nologin;
@@ -19,9 +19,9 @@ grant usage on schema storage to anon, authenticated; grant all on storage.objec
 grant usage on schema public to anon, authenticated;
 `
 await db.exec(stub)
-await db.exec(readFileSync(MIGRATION, 'utf8'))
-await db.exec(readFileSync(MIGRATION, 'utf8')) // must be safe to run twice
-console.log('migration ran twice OK')
+for (const sql of MIGRATIONS) await db.exec(sql)
+for (const sql of MIGRATIONS) await db.exec(sql) // must be safe to run twice
+console.log('migrations ran twice OK')
 
 let pass = 0, fail = 0
 async function as(who, sql, expectOk, label) {
@@ -81,5 +81,21 @@ await as('admin', `update categories set slug='portraits' where slug='portrait' 
 console.log('cascade →', JSON.stringify((await db.query(`select slug, category from prompts where slug='pub-one'`)).rows))
 await as('admin', `delete from categories where slug='product' returning slug`, true, 'admin deletes category')
 console.log('set null →', JSON.stringify((await db.query(`select slug, category from prompts where slug='draft-one'`)).rows))
+// blog posts
+await as('admin', `insert into posts (slug,title,content,published) values ('live-post','Live','# Hi',true),('draft-post','Draft','wip',false) returning slug, published_at is not null as stamped`, true, 'admin can write posts')
+const stamped = (await db.query(`select slug, published_at from posts order by slug`)).rows
+const okStamp = stamped.find((r) => r.slug === 'live-post').published_at && !stamped.find((r) => r.slug === 'draft-post').published_at
+console.log(okStamp ? 'PASS  published_at set only on published post' : 'FAIL  published_at wrong'); okStamp ? pass++ : fail++
+const seen = await as('anon', `select slug from posts`, true, 'visitor sees only published posts')
+if (seen.rows.length !== 1 || seen.rows[0].slug !== 'live-post') { fail++; console.log('FAIL  draft post visible to visitor!') }
+await as('anon', `insert into posts (slug,title) values ('spam','Spam')`, false, 'visitor cannot write posts')
+await as('stranger', `insert into posts (slug,title) values ('spam','Spam')`, false, 'other Google account cannot write posts')
+await as('stranger', `update posts set title='hacked' returning slug`, true, 'stranger post update (should affect 0 rows)')
+const pt = (await db.query(`select title from posts where slug='live-post'`)).rows[0].title
+console.log(pt === 'Live' ? 'PASS  post unchanged after stranger update' : 'FAIL  stranger changed a post'); pt === 'Live' ? pass++ : fail++
+await as('admin', `insert into posts (slug,title) values ('Bad Slug','X')`, false, 'post slug must be url-safe')
+await as('admin', `update posts set published=false where slug='live-post' returning published_at is not null as kept`, true, 'unpublishing keeps the publish date')
+await as('admin', `delete from posts where slug='draft-post' returning slug`, true, 'admin can delete posts')
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

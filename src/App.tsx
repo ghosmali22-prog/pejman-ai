@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { SiteLayout } from './components/layout/SiteLayout'
+import { BlogPage } from './pages/BlogPage'
+import { BlogPostPage } from './pages/BlogPostPage'
 import { HomePage } from './pages/HomePage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PromptsPage } from './pages/PromptsPage'
@@ -40,6 +42,8 @@ export default function App() {
                 <Route path="prompts" element={null} />
                 <Route path="p/:slug" element={null} />
               </Route>
+              <Route path="blog" element={<BlogPage />} />
+              <Route path="blog/:slug" element={<BlogPostPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
