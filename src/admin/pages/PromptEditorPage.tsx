@@ -101,7 +101,8 @@ export function PromptEditorPage() {
   const [videoBusy, setVideoBusy] = useState(false)
   const [videoUploading, setVideoUploading] = useState(false)
   const videoUploadRef = useRef<Promise<api.UploadedVideo | null> | null>(null)
-  const coverFromVideo = useRef(false)
+  // Image and video prompts are separate; a video prompt needs no cover photo.
+  const [kind, setKind] = useState<'image' | 'video'>('image')
 
   // Leaving without saving: delete the files that were uploaded in the background.
   useEffect(
@@ -122,6 +123,7 @@ export function PromptEditorPage() {
       setCats(cs)
       const r = id ? (ps.find((p) => p.id === id) ?? null) : null
       setRow(r)
+      setKind(r?.video_url ? 'video' : 'image')
       if (r) {
         setForm({
           title: r.title,
@@ -216,7 +218,6 @@ export function PromptEditorPage() {
     setCompressing(true)
     try {
       await applyImage(await compressImage(file))
-      coverFromVideo.current = false
     } catch {
       toast(t.error)
       return
@@ -234,17 +235,13 @@ export function PromptEditorPage() {
     if (file.size > api.MAX_VIDEO_BYTES) return toast(t.videoTooBig)
     setVideoBusy(true)
     try {
+      // A frame is saved behind the scenes as a light placeholder while the video loads.
       const poster = await videoPoster(file)
-      // Use the video's frame as the cover unless you picked your own cover photo.
-      if (!image && !row?.image_url) coverFromVideo.current = true
-      if (coverFromVideo.current || (!image && row?.video_url && !videoRemoved)) {
-        await applyImage(poster)
-        coverFromVideo.current = true
-      } else URL.revokeObjectURL(poster.previewUrl)
+      await applyImage(poster)
       setRatio(nearestRatio(poster.width, poster.height))
     } catch (err) {
       console.error(err)
-      // The browser could not decode it (e.g. HEVC .mov): still upload, cover stays as is.
+      // The browser could not decode it (e.g. HEVC .mov): still upload; the site shows its first frame.
     } finally {
       setVideoBusy(false)
     }
@@ -297,7 +294,8 @@ export function PromptEditorPage() {
     e.preventDefault()
     if (tagInput.trim()) addTag(tagInput)
     if (!form.title.trim() || !form.prompt.trim()) return toast(t.needTitle)
-    if (!image && !row?.image_url) return toast(t.needImage)
+    if (kind === 'image' && !image && !row?.image_url) return toast(t.needImage)
+    if (kind === 'video' && !video && (videoRemoved || !row?.video_url)) return toast(t.needVideo)
     const slug = slugify(form.slug) || uniqueSlug(slugify(form.title), taken)
     if (taken.has(slug)) return toast(t.slugTaken)
 
@@ -313,7 +311,7 @@ export function PromptEditorPage() {
       if (video) {
         savedVideo = (await videoUploadRef.current) ?? (await api.uploadPromptVideo(video.file))
         videoUploadRef.current = Promise.resolve(savedVideo)
-      } else if (videoRemoved && row?.video_url) {
+      } else if ((videoRemoved || kind === 'image') && row?.video_url) {
         savedVideo = { video_url: null, video_path: null }
       }
       const settings = Object.fromEntries(
@@ -400,103 +398,124 @@ export function PromptEditorPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        {/* Image */}
+        {/* Image or video */}
         <Card className="p-4 lg:sticky lg:top-24 lg:self-start">
-          <p className="mb-3 text-[13px] font-medium text-paper/70">{t.image}</p>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className={cx(
-              'relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-ink ring-1 ring-white/10 transition hover:ring-lime/50',
-              preview ? '' : 'aspect-[4/5] border-2 border-dashed border-white/10',
-            )}
-          >
-            {preview ? (
-              <img src={preview} alt="" className="max-h-[60vh] w-full object-contain" />
-            ) : (
-              <span className="flex flex-col items-center gap-3 text-paper/50">
-                <span className="flex size-14 items-center justify-center rounded-full bg-lime text-ink">
-                  <ImagePlus className="size-6" />
-                </span>
-                <span className="text-sm font-medium">{t.chooseImage}</span>
-              </span>
-            )}
-            {compressing && (
-              <span className="absolute inset-0 flex items-center justify-center gap-2 bg-ink/70 text-sm">
-                <Loader2 className="size-5 animate-spin text-lime" /> {t.compressing}
-              </span>
-            )}
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => onFile(e.target.files?.[0])}
-          />
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <p className="text-xs text-paper/40">
-              {image ? `WebP · ${image.width}×${image.height} · ${formatBytes(image.blob.size)}` : t.imageHint}
-            </p>
-            {preview && (
-              <Button size="sm" onClick={() => fileRef.current?.click()}>
-                {t.changeImage}
-              </Button>
-            )}
-          </div>
-
-          <div className="mt-5 border-t border-white/10 pt-4">
-            <p className="mb-3 text-[13px] font-medium text-paper/70">{t.video}</p>
-            {videoPreview ? (
-              <div className="relative overflow-hidden rounded-2xl bg-ink ring-1 ring-white/10">
-                <video
-                  src={videoPreview}
-                  controls
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                  className="max-h-[50vh] w-full"
-                />
-                {videoUploading && (
-                  <span className="absolute start-2 top-2 flex items-center gap-1.5 rounded-full bg-ink/80 px-3 py-1.5 text-xs">
-                    <Loader2 className="size-3.5 animate-spin text-lime" /> {t.videoUploading}
-                  </span>
+          <div className="mb-4 grid grid-cols-2 gap-1 rounded-full bg-ink p-1 ring-1 ring-white/10">
+            {(['image', 'video'] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setKind(k)}
+                className={cx(
+                  'h-10 rounded-full text-sm font-semibold transition-colors',
+                  kind === k ? 'bg-lime text-ink' : 'text-paper/60',
                 )}
-              </div>
-            ) : (
+              >
+                {k === 'image' ? t.typeImage : t.typeVideo}
+              </button>
+            ))}
+          </div>
+          {kind === 'image' && (
+            <>
+              <p className="mb-3 text-[13px] font-medium text-paper/70">{t.image}</p>
               <button
                 type="button"
-                onClick={() => videoRef.current?.click()}
-                className="flex h-16 w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/10 bg-ink text-sm font-medium text-paper/60 transition hover:border-lime/50"
+                onClick={() => fileRef.current?.click()}
+                className={cx(
+                  'relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-ink ring-1 ring-white/10 transition hover:ring-lime/50',
+                  preview ? '' : 'aspect-[4/5] border-2 border-dashed border-white/10',
+                )}
               >
-                {videoBusy ? <Loader2 className="size-5 animate-spin text-lime" /> : <Film className="size-5" />}
-                {t.chooseVideo}
+                {preview ? (
+                  <img src={preview} alt="" className="max-h-[60vh] w-full object-contain" />
+                ) : (
+                  <span className="flex flex-col items-center gap-3 text-paper/50">
+                    <span className="flex size-14 items-center justify-center rounded-full bg-lime text-ink">
+                      <ImagePlus className="size-6" />
+                    </span>
+                    <span className="text-sm font-medium">{t.chooseImage}</span>
+                  </span>
+                )}
+                {compressing && (
+                  <span className="absolute inset-0 flex items-center justify-center gap-2 bg-ink/70 text-sm">
+                    <Loader2 className="size-5 animate-spin text-lime" /> {t.compressing}
+                  </span>
+                )}
               </button>
-            )}
-            <input
-              ref={videoRef}
-              type="file"
-              accept="video/mp4,video/webm,video/quicktime"
-              className="hidden"
-              onChange={(e) => onVideo(e.target.files?.[0])}
-            />
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <p className="text-xs text-paper/40">
-                {video ? `${video.file.name} · ${formatBytes(video.file.size)}` : t.videoHint}
-              </p>
-              {videoPreview && (
-                <div className="flex shrink-0 gap-2">
-                  <Button size="sm" onClick={() => videoRef.current?.click()} loading={videoBusy}>
-                    {t.changeVideo}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => onFile(e.target.files?.[0])}
+              />
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <p className="text-xs text-paper/40">
+                  {image ? `WebP · ${image.width}×${image.height} · ${formatBytes(image.blob.size)}` : t.imageHint}
+                </p>
+                {preview && (
+                  <Button size="sm" onClick={() => fileRef.current?.click()}>
+                    {t.changeImage}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={removeVideo} aria-label={t.removeVideo}>
-                    <Trash2 className="size-4" />
-                  </Button>
+                )}
+              </div>
+            </>
+          )}
+
+          {kind === 'video' && (
+            <div>
+              <p className="mb-3 text-[13px] font-medium text-paper/70">{t.video}</p>
+              {videoPreview ? (
+                <div className="relative overflow-hidden rounded-2xl bg-ink ring-1 ring-white/10">
+                  <video
+                    src={videoPreview}
+                    controls
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="max-h-[50vh] w-full"
+                  />
+                  {videoUploading && (
+                    <span className="absolute start-2 top-2 flex items-center gap-1.5 rounded-full bg-ink/80 px-3 py-1.5 text-xs">
+                      <Loader2 className="size-3.5 animate-spin text-lime" /> {t.videoUploading}
+                    </span>
+                  )}
                 </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => videoRef.current?.click()}
+                  className="flex h-16 w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/10 bg-ink text-sm font-medium text-paper/60 transition hover:border-lime/50"
+                >
+                  {videoBusy ? <Loader2 className="size-5 animate-spin text-lime" /> : <Film className="size-5" />}
+                  {t.chooseVideo}
+                </button>
               )}
+              <input
+                ref={videoRef}
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime"
+                className="hidden"
+                onChange={(e) => onVideo(e.target.files?.[0])}
+              />
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <p className="text-xs text-paper/40">
+                  {video ? `${video.file.name} · ${formatBytes(video.file.size)}` : t.videoHint}
+                </p>
+                {videoPreview && (
+                  <div className="flex shrink-0 gap-2">
+                    <Button size="sm" onClick={() => videoRef.current?.click()} loading={videoBusy}>
+                      {t.changeVideo}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={removeVideo} aria-label={t.removeVideo}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </Card>
 
         {/* Fields */}

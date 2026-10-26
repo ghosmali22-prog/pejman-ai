@@ -166,7 +166,7 @@ function PromptDialog({ prompt, onClose, goHome }: { prompt?: Prompt; onClose: (
               {prompt.video_url ? (
                 <video
                   src={prompt.video_url}
-                  poster={prompt.image_url}
+                  poster={prompt.image_url || undefined}
                   width={prompt.image_width ?? undefined}
                   height={prompt.image_height ?? undefined}
                   autoPlay
