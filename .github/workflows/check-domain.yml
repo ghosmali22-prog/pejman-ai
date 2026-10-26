@@ -1,4 +1,4 @@
-# Temporary diagnostic: checks DNS, Pages settings and that the live site and its assets load.
+# Temporary diagnostic: checks DNS, Pages settings and that the live site and its assets load (re-run).
 name: Check domain
 on:
   push:
