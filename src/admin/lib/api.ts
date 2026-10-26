@@ -1,6 +1,6 @@
 import { defaultSettings } from '../../config/site'
 import { sampleCategories, samplePrompts } from '../../data/samples'
-import { IMAGE_BUCKET, supabase } from '../../lib/supabase'
+import { IMAGE_BUCKET, supabase, VIDEO_BUCKET } from '../../lib/supabase'
 import { mergeSettings } from '../../services/settings'
 import type { Category, ContactMessage, DailyCopies, PromptRow, SiteSettings, Subscriber } from '../../types'
 import type { CompressedImage } from './image'
@@ -142,6 +142,34 @@ async function removeImage(path?: string | null) {
   await sb().storage.from(IMAGE_BUCKET).remove([path])
 }
 
+export type UploadedVideo = Pick<PromptRow, 'video_url' | 'video_path'>
+export const MAX_VIDEO_BYTES = 100 * 1024 * 1024
+
+/**
+ * Uploads a prompt video as-is (no re-encoding, so it keeps its quality).
+ * Cached for a year by the CDN, like images.
+ */
+export async function uploadPromptVideo(file: File): Promise<UploadedVideo> {
+  if (demo) return { video_url: URL.createObjectURL(file), video_path: null }
+  const ext = file.type === 'video/webm' ? 'webm' : file.type === 'video/quicktime' ? 'mov' : 'mp4'
+  const path = `prompts/${uid()}.${ext}`
+  const { error } = await sb()
+    .storage.from(VIDEO_BUCKET)
+    .upload(path, file, { contentType: file.type || 'video/mp4', cacheControl: '31536000', upsert: false })
+  if (error) throw error
+  const { data } = sb().storage.from(VIDEO_BUCKET).getPublicUrl(path)
+  return { video_url: data.publicUrl, video_path: path }
+}
+
+export function discardVideo(video?: UploadedVideo | null) {
+  if (video?.video_path) removeVideo(video.video_path).catch(() => {})
+}
+
+async function removeVideo(path?: string | null) {
+  if (!path || demo) return
+  await sb().storage.from(VIDEO_BUCKET).remove([path])
+}
+
 // ---------------------------------------------------------------- prompts
 export const prompts = {
   async list(): Promise<PromptRow[]> {
@@ -157,17 +185,23 @@ export const prompts = {
   },
 
   /**
-   * Creates or updates a prompt. The image is uploaded beforehand (see `uploadPromptImage`,
-   * which the editor starts as soon as a photo is picked), so saving is one quick database call.
-   * Deletes the replaced image file after a successful update.
+   * Creates or updates a prompt. The image/video is uploaded beforehand (see `uploadPromptImage`,
+   * which the editor starts as soon as a file is picked), so saving is one quick database call.
+   * Deletes the replaced image/video file after a successful update. Pass
+   * `video: { video_url: null, video_path: null }` to remove the video.
    */
   async save(
     draft: PromptDraft,
-    opts: { image?: UploadedImage | null; existing?: PromptRow | null; position?: number } = {},
+    opts: {
+      image?: UploadedImage | null
+      video?: UploadedVideo | null
+      existing?: PromptRow | null
+      position?: number
+    } = {},
   ): Promise<PromptRow> {
-    const { image, existing } = opts
+    const { image, video, existing } = opts
     const { id, ...fields } = draft
-    const row = { ...fields, ...(image ?? {}) }
+    const row = { ...fields, ...(image ?? {}), ...(video ?? {}) }
 
     if (demo) {
       const current = id ? store.prompts.find((p) => p.id === id) : null
@@ -187,6 +221,9 @@ export const prompts = {
       const saved = await run<PromptRow>(sb().from('prompts').update(row).eq('id', id).select().single())
       if (image && existing?.image_path && existing.image_path !== saved.image_path) {
         removeImage(existing.image_path).catch(() => {})
+      }
+      if (video && existing?.video_path && existing.video_path !== saved.video_path) {
+        removeVideo(existing.video_path).catch(() => {})
       }
       return saved
     }
@@ -214,6 +251,7 @@ export const prompts = {
     }
     await run(sb().from('prompts').delete().eq('id', row.id))
     await removeImage(row.image_path).catch(() => {})
+    await removeVideo(row.video_path).catch(() => {})
   },
 
   /** Saves a new order: position = index in the given list. */

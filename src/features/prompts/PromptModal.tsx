@@ -163,13 +163,30 @@ function PromptDialog({ prompt, onClose, goHome }: { prompt?: Prompt; onClose: (
         ) : (
           <div className="-mt-14 grid md:grid-cols-[1.05fr_1fr]">
             <div className="bg-paper-2 p-3 md:p-4">
-              <img
-                src={prompt.image_url}
-                alt={prompt.title}
-                width={prompt.image_width ?? undefined}
-                height={prompt.image_height ?? undefined}
-                className="w-full rounded-[22px] object-cover md:sticky md:top-4 md:max-h-[calc(90vh-2rem)] md:object-contain"
-              />
+              {prompt.video_url ? (
+                <video
+                  src={prompt.video_url}
+                  poster={prompt.image_url}
+                  width={prompt.image_width ?? undefined}
+                  height={prompt.image_height ?? undefined}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  controls
+                  preload="auto"
+                  aria-label={prompt.title}
+                  className="w-full rounded-[22px] bg-ink object-cover md:sticky md:top-4 md:max-h-[calc(90vh-2rem)] md:object-contain"
+                />
+              ) : (
+                <img
+                  src={prompt.image_url}
+                  alt={prompt.title}
+                  width={prompt.image_width ?? undefined}
+                  height={prompt.image_height ?? undefined}
+                  className="w-full rounded-[22px] object-cover md:sticky md:top-4 md:max-h-[calc(90vh-2rem)] md:object-contain"
+                />
+              )}
             </div>
 
             <div className="flex flex-col gap-6 p-5 pb-8 sm:p-8 md:p-10">

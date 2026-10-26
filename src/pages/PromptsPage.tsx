@@ -9,6 +9,13 @@ import { gsap, hasFinePointer, ScrollTrigger } from '../lib/motion'
 import { useMotion } from '../providers/MotionProvider'
 import { useSiteData } from '../providers/SiteDataProvider'
 
+type Kind = 'all' | 'image' | 'video'
+const KINDS: { id: Kind; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'image', label: 'Images' },
+  { id: 'video', label: 'Videos' },
+]
+
 /**
  * The prompt library: every prompt with category filters and search.
  * Also stays mounted underneath /p/:slug so a prompt opens as an overlay on top of it.
@@ -20,6 +27,23 @@ export function PromptsPage() {
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const active = params.get('c') ?? 'all'
+  const kind = (params.get('type') ?? 'all') as Kind
+  const hasVideos = useMemo(() => prompts.some((p) => p.video_url), [prompts])
+  const ofKind = useMemo(
+    () => (kind === 'all' ? prompts : prompts.filter((p) => (kind === 'video') === Boolean(p.video_url))),
+    [prompts, kind],
+  )
+
+  const setKind = (k: Kind) =>
+    setParams(
+      (p) => {
+        if (k === 'all') p.delete('type')
+        else p.set('type', k)
+        p.delete('c')
+        return p
+      },
+      { replace: true, preventScrollReset: true },
+    )
 
   const setActive = (slug: string) =>
     setParams(
@@ -41,19 +65,19 @@ export function PromptsPage() {
   const categoryName = useMemo(() => new Map(categories.map((c) => [c.slug, c.name])), [categories])
   // Only show chips for categories that actually have prompts.
   const usedCategories = useMemo(
-    () => categories.filter((c) => prompts.some((p) => p.category === c.slug)),
-    [categories, prompts],
+    () => categories.filter((c) => ofKind.some((p) => p.category === c.slug)),
+    [categories, ofKind],
   )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return prompts.filter((p) => {
+    return ofKind.filter((p) => {
       if (active !== 'all' && p.category !== active) return false
       if (!q) return true
       return [p.title, p.prompt, p.model, p.category, ...(p.tags ?? [])].join(' ').toLowerCase().includes(q)
     })
-  }, [prompts, active, query])
-  const filterKey = `${active}|${query}|${filtered.map((p) => p.id).join(',')}`
+  }, [ofKind, active, query])
+  const filterKey = `${kind}|${active}|${query}|${filtered.map((p) => p.id).join(',')}`
 
   // Cards fade + rise in batches; images drift inside their frames.
   useGSAP(
@@ -106,13 +130,31 @@ export function PromptsPage() {
             </span>
             <RevealText as="h1" text={'Prompt\nlibrary'} className="display text-[22vw] md:text-[180px]" />
             <p className="mt-6 max-w-lg text-base text-paper/60 md:text-lg">
-              Pick an image, copy the exact prompt behind it and make it your own.
+              Pick an image or video, copy the exact prompt behind it and make it your own.
             </p>
           </div>
         </header>
 
         <div className="mx-auto max-w-7xl px-4 pb-28 sm:px-6 md:px-8 md:pb-40">
           {/* Filters */}
+          {hasVideos && (
+            <div className="mt-6 inline-flex rounded-full bg-paper-2 p-1" role="tablist" aria-label="Prompt type">
+              {KINDS.map((k) => (
+                <button
+                  key={k.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={kind === k.id}
+                  onClick={() => setKind(k.id)}
+                  className={`h-10 rounded-full px-5 text-sm font-semibold transition-colors duration-300 ${
+                    kind === k.id ? 'bg-ink text-paper' : 'text-ink/60 hover:text-ink'
+                  }`}
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="sticky top-[76px] z-20 -mx-4 bg-paper/90 px-4 py-3 backdrop-blur-md sm:mx-0 sm:mt-6 sm:rounded-full sm:px-2 md:top-[84px]">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div
@@ -133,7 +175,7 @@ export function PromptsPage() {
                   >
                     {c.name}
                     {c.slug !== 'all' && (
-                      <span className="ms-1.5 opacity-50">{prompts.filter((p) => p.category === c.slug).length}</span>
+                      <span className="ms-1.5 opacity-50">{ofKind.filter((p) => p.category === c.slug).length}</span>
                     )}
                   </button>
                 ))}
@@ -171,7 +213,7 @@ export function PromptsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setActive('all')
+                    setKind('all')
                     setQuery('')
                   }}
                   className="mt-6 h-11 rounded-full bg-ink px-6 text-sm font-semibold text-paper"

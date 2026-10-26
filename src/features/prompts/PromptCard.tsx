@@ -1,5 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
+import { Play } from 'lucide-react'
 import type { Prompt } from '../../types'
+import { PromptVideo } from './PromptVideo'
 
 interface PromptCardProps {
   prompt: Prompt
@@ -9,7 +11,8 @@ interface PromptCardProps {
 /**
  * Gallery card. The image is grayscale by default and fades to color on hover
  * (or when centered on screen on touch devices). Two stacked <img> tags share the
- * same URL, so the browser downloads the file only once.
+ * same URL, so the browser downloads the file only once. Video prompts play in colour
+ * while on screen.
  */
 export function PromptCard({ prompt, categoryName }: PromptCardProps) {
   const location = useLocation()
@@ -24,22 +27,33 @@ export function PromptCard({ prompt, categoryName }: PromptCardProps) {
       <div className="relative aspect-[4/5] overflow-hidden rounded-[20px] bg-paper-2 md:rounded-[24px]">
         <div className="absolute inset-0 transition-transform duration-[1.2s] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.06]">
           <div className="prompt-parallax absolute -inset-y-[8%] inset-x-0">
-            <img
-              src={prompt.image_url}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="absolute inset-0 size-full object-cover grayscale"
-            />
-            <img
-              src={prompt.image_url}
-              alt={prompt.title}
-              loading="lazy"
-              decoding="async"
-              className="prompt-color absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-700 ease-out group-hover:opacity-100 group-focus-visible:opacity-100"
-            />
+            {prompt.video_url ? (
+              <PromptVideo prompt={prompt} className="absolute inset-0 size-full object-cover" />
+            ) : (
+              <>
+                <img
+                  src={prompt.image_url}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 size-full object-cover grayscale"
+                />
+                <img
+                  src={prompt.image_url}
+                  alt={prompt.title}
+                  loading="lazy"
+                  decoding="async"
+                  className="prompt-color absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-700 ease-out group-hover:opacity-100 group-focus-visible:opacity-100"
+                />
+              </>
+            )}
           </div>
         </div>
+        {prompt.video_url && (
+          <span className="absolute right-3 top-3 flex size-7 items-center justify-center rounded-full bg-ink/70 text-paper backdrop-blur md:right-4 md:top-4 md:size-8">
+            <Play className="size-3.5 fill-current" aria-label="Video" />
+          </span>
+        )}
         <span className="absolute left-3 top-3 rounded-full bg-paper/90 px-2.5 py-1 text-[11px] font-semibold text-ink backdrop-blur md:left-4 md:top-4 md:text-xs">
           {categoryName}
         </span>

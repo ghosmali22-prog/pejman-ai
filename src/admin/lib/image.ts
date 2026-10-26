@@ -47,3 +47,34 @@ function loadViaImg(file: File): Promise<HTMLImageElement> {
 
 export const formatBytes = (n: number) =>
   n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`
+
+/**
+ * Grabs a frame near the start of a video and compresses it like a photo, to use as the
+ * prompt's poster/cover. Also returns the duration so the editor can show it.
+ */
+export async function videoPoster(file: File): Promise<CompressedImage & { duration: number }> {
+  const url = URL.createObjectURL(file)
+  try {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'auto'
+    video.src = url
+    await new Promise<void>((resolve, reject) => {
+      video.onloadeddata = () => resolve()
+      video.onerror = () => reject(new Error('Unsupported video'))
+    })
+    video.currentTime = Math.min(0.5, (video.duration || 1) / 4)
+    await new Promise<void>((resolve) => (video.onseeked = () => resolve()))
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    const frame = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+    if (!frame) throw new Error('Could not read video frame')
+    const poster = await compressImage(new File([frame], 'poster.png', { type: 'image/png' }))
+    return { ...poster, duration: video.duration }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
