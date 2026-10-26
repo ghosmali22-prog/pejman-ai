@@ -1,5 +1,6 @@
 import { defaultSettings } from '../../config/site'
 import { sampleCategories, samplePrompts } from '../../data/samples'
+import { SUPABASE_KEY, SUPABASE_URL } from '../../lib/config'
 import { IMAGE_BUCKET, supabase, VIDEO_BUCKET } from '../../lib/supabase'
 import { mergeSettings } from '../../services/settings'
 import type { Category, ContactMessage, DailyCopies, PromptRow, SiteSettings, Subscriber } from '../../types'
@@ -146,17 +147,28 @@ export type UploadedVideo = Pick<PromptRow, 'video_url' | 'video_path'>
 export const MAX_VIDEO_BYTES = 100 * 1024 * 1024
 
 /**
- * Uploads a prompt video as-is (no re-encoding, so it keeps its quality).
- * Cached for a year by the CDN, like images.
+ * Uploads a prompt video (compress it first with `compressVideo`). Cached for a year by the CDN,
+ * like images. Sent with XMLHttpRequest instead of supabase-js so the editor can show progress.
  */
-export async function uploadPromptVideo(file: File): Promise<UploadedVideo> {
+export async function uploadPromptVideo(file: File, onProgress?: (fraction: number) => void): Promise<UploadedVideo> {
   if (demo) return { video_url: URL.createObjectURL(file), video_path: null }
-  const ext = file.type === 'video/webm' ? 'webm' : file.type === 'video/quicktime' ? 'mov' : 'mp4'
+  const ext = file.name.match(/\.(\w{2,5})$/)?.[1]?.toLowerCase() ?? 'mp4'
   const path = `prompts/${uid()}.${ext}`
-  const { error } = await sb()
-    .storage.from(VIDEO_BUCKET)
-    .upload(path, file, { contentType: file.type || 'video/mp4', cacheControl: '31536000', upsert: false })
-  if (error) throw error
+  const { data: session } = await sb().auth.getSession()
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${SUPABASE_URL}/storage/v1/object/${VIDEO_BUCKET}/${path}`)
+    xhr.setRequestHeader('Authorization', `Bearer ${session.session?.access_token ?? SUPABASE_KEY}`)
+    xhr.setRequestHeader('apikey', SUPABASE_KEY!)
+    xhr.setRequestHeader('Content-Type', file.type || 'video/mp4')
+    xhr.setRequestHeader('cache-control', 'max-age=31536000')
+    xhr.setRequestHeader('x-upsert', 'false')
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total)
+    xhr.onload = () =>
+      xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`))
+    xhr.onerror = () => reject(new Error('Network error'))
+    xhr.send(file)
+  })
   const { data } = sb().storage.from(VIDEO_BUCKET).getPublicUrl(path)
   return { video_url: data.publicUrl, video_path: path }
 }
