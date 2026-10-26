@@ -7,6 +7,7 @@ import { Button, Card, Field, Input, Select, Spinner, Textarea, Toggle, cx, useC
 import * as api from '../lib/api'
 import { useI18n } from '../lib/i18n'
 import { compressImage, formatBytes, videoPoster, type CompressedImage } from '../lib/image'
+import { compressVideo } from '../lib/video'
 import { slugify, uniqueSlug } from '../lib/slug'
 
 const MODELS = [
@@ -100,6 +101,13 @@ export function PromptEditorPage() {
   const [videoRemoved, setVideoRemoved] = useState(false)
   const [videoBusy, setVideoBusy] = useState(false)
   const [videoUploading, setVideoUploading] = useState(false)
+  // Background progress of the picked video: compress first, then upload.
+  const [sentSize, setSentSize] = useState<number | null>(null)
+  const [videoProgress, setVideoProgress] = useState<{ stage: 'compress' | 'upload'; pct: number } | null>(null)
+  // The file actually uploaded (compressed), so a retry on save doesn't compress again.
+  const videoFileRef = useRef<File | null>(null)
+  // Bumped for every picked/removed video, so a superseded one stops reporting.
+  const videoJob = useRef(0)
   const videoUploadRef = useRef<Promise<api.UploadedVideo | null> | null>(null)
   // Image and video prompts are separate; a video prompt needs no cover photo.
   const [kind, setKind] = useState<'image' | 'video'>('image')
@@ -233,37 +241,64 @@ export function PromptEditorPage() {
     if (videoRef.current) videoRef.current.value = ''
     if (!file) return
     if (file.size > api.MAX_VIDEO_BYTES) return toast(t.videoTooBig)
-    setVideoBusy(true)
-    try {
-      // A frame is saved behind the scenes as a light placeholder while the video loads.
-      const poster = await videoPoster(file)
-      await applyImage(poster)
-      setRatio(nearestRatio(poster.width, poster.height))
-    } catch (err) {
-      console.error(err)
-      // The browser could not decode it (e.g. HEVC .mov): still upload; the site shows its first frame.
-    } finally {
-      setVideoBusy(false)
+    // A frame is saved behind the scenes as a light placeholder while the video loads.
+    const makePoster = async (f: File) => {
+      try {
+        const poster = await videoPoster(f)
+        await applyImage(poster)
+        setRatio(nearestRatio(poster.width, poster.height))
+        return true
+      } catch {
+        return false // this browser can't play the original format; retried after converting
+      }
     }
+    setVideoBusy(true)
+    const hasPoster = await makePoster(file)
+    setVideoBusy(false)
+    setSentSize(null)
     setVideo({ file, url: URL.createObjectURL(file) })
     setVideoRemoved(false)
     videoUploadRef.current?.then(api.discardVideo)
     setVideoUploading(true)
-    const upload = api.uploadPromptVideo(file).catch((err) => {
+    const job = ++videoJob.current
+    const current = () => videoJob.current === job
+    const report = (stage: 'compress' | 'upload') => (f: number) => {
+      if (current()) setVideoProgress({ stage, pct: Math.round(f * 100) })
+    }
+    const upload = (async () => {
+      const small = await compressVideo(file, report('compress'))
+      if (!current()) return null
+      videoFileRef.current = small
+      setSentSize(small.size)
+      if (small !== file) {
+        const url = URL.createObjectURL(small)
+        setVideo((v) => (v?.file === file ? { file, url } : v))
+        if (!hasPoster) await makePoster(small)
+      }
+      return api.uploadPromptVideo(small, report('upload'))
+    })().catch((err) => {
       console.error(err)
       toast(t.videoFailed)
       return null
     })
     videoUploadRef.current = upload
-    upload.finally(() => videoUploadRef.current === upload && setVideoUploading(false))
+    videoFileRef.current = null
+    setVideoProgress({ stage: 'compress', pct: 0 })
+    upload.finally(() => {
+      if (!current()) return
+      setVideoUploading(false)
+      setVideoProgress(null)
+    })
     if (!form.title.trim()) runAi({ auto: true })
   }
 
   const removeVideo = () => {
+    videoJob.current++
     videoUploadRef.current?.then(api.discardVideo)
     videoUploadRef.current = null
     setVideo(null)
     setVideoUploading(false)
+    setVideoProgress(null)
     setVideoRemoved(true)
   }
 
@@ -309,7 +344,7 @@ export function PromptEditorPage() {
       }
       let savedVideo: api.UploadedVideo | null = null
       if (video) {
-        savedVideo = (await videoUploadRef.current) ?? (await api.uploadPromptVideo(video.file))
+        savedVideo = (await videoUploadRef.current) ?? (await api.uploadPromptVideo(videoFileRef.current ?? video.file))
         videoUploadRef.current = Promise.resolve(savedVideo)
       } else if ((videoRemoved || kind === 'image') && row?.video_url) {
         savedVideo = { video_url: null, video_path: null }
@@ -478,7 +513,10 @@ export function PromptEditorPage() {
                   />
                   {videoUploading && (
                     <span className="absolute start-2 top-2 flex items-center gap-1.5 rounded-full bg-ink/80 px-3 py-1.5 text-xs">
-                      <Loader2 className="size-3.5 animate-spin text-lime" /> {t.videoUploading}
+                      <Loader2 className="size-3.5 animate-spin text-lime" />{' '}
+                      {videoProgress
+                        ? `${videoProgress.stage === 'compress' ? t.videoCompressing : t.videoSending} ${videoProgress.pct}%`
+                        : t.videoUploading}
                     </span>
                   )}
                 </div>
@@ -495,13 +533,17 @@ export function PromptEditorPage() {
               <input
                 ref={videoRef}
                 type="file"
-                accept="video/mp4,video/webm,video/quicktime"
+                accept="video/*"
                 className="hidden"
                 onChange={(e) => onVideo(e.target.files?.[0])}
               />
               <div className="mt-3 flex items-center justify-between gap-2">
                 <p className="text-xs text-paper/40">
-                  {video ? `${video.file.name} · ${formatBytes(video.file.size)}` : t.videoHint}
+                  {video
+                    ? `${video.file.name} · ${formatBytes(video.file.size)}${
+                        sentSize && sentSize < video.file.size ? ` → ${formatBytes(sentSize)}` : ''
+                      }`
+                    : t.videoHint}
                 </p>
                 {videoPreview && (
                   <div className="flex shrink-0 gap-2">
