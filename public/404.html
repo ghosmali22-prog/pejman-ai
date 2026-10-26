@@ -5,10 +5,10 @@
     <title>PEJMAN AI</title>
     <script>
       // GitHub Pages SPA trick (rafgraph/spa-github-pages):
-      // turns /pejman-ai/p/my-prompt into /pejman-ai/?/p/my-prompt so index.html can restore the route.
-      // Keep 1 path segment ("pejman-ai"). Set to 0 when using a custom domain.
-      var pathSegmentsToKeep = 1
+      // turns /p/my-prompt into /?/p/my-prompt so index.html can restore the route.
+      // On pejiai.com the site is at the root (keep 0 segments); on *.github.io it lives under /pejman-ai/ (keep 1).
       var l = window.location
+      var pathSegmentsToKeep = /\.github\.io$/.test(l.hostname) ? 1 : 0
       l.replace(
         l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
           l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +

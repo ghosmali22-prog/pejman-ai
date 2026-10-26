@@ -1,6 +1,6 @@
 import type { SiteSettings } from '../types'
 
-export const SITE_URL = 'https://ghosmali22-prog.github.io/pejman-ai'
+export const SITE_URL = 'https://pejiai.com'
 
 /**
  * Default text for the whole site. Every value here can be overridden

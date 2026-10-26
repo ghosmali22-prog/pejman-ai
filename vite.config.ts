@@ -80,12 +80,13 @@ function adminEntry(): Plugin {
   }
 }
 
-// The site is served from https://<user>.github.io/pejman-ai/ on GitHub Pages.
-// Set VITE_BASE=/ if you later move to a custom domain.
+// The site is served from the root of https://pejiai.com.
+// The deploy workflow passes VITE_BASE from GitHub Pages itself, so a build still works
+// under /pejman-ai/ if the custom domain is ever removed.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   return {
-    base: process.env.VITE_BASE ?? '/pejman-ai/',
+    base: process.env.VITE_BASE || '/',
     plugins: [react(), tailwindcss(), contentSecurityPolicy(env.VITE_SUPABASE_URL), adminEntry()],
     build: {
       rollupOptions: {
