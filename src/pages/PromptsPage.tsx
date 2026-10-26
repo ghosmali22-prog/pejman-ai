@@ -9,9 +9,8 @@ import { gsap, hasFinePointer, ScrollTrigger } from '../lib/motion'
 import { useMotion } from '../providers/MotionProvider'
 import { useSiteData } from '../providers/SiteDataProvider'
 
-type Kind = 'all' | 'image' | 'video'
+type Kind = 'image' | 'video'
 const KINDS: { id: Kind; label: string }[] = [
-  { id: 'all', label: 'All' },
   { id: 'image', label: 'Images' },
   { id: 'video', label: 'Videos' },
 ]
@@ -27,17 +26,15 @@ export function PromptsPage() {
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const active = params.get('c') ?? 'all'
-  const kind = (params.get('type') ?? 'all') as Kind
   const hasVideos = useMemo(() => prompts.some((p) => p.video_url), [prompts])
-  const ofKind = useMemo(
-    () => (kind === 'all' ? prompts : prompts.filter((p) => (kind === 'video') === Boolean(p.video_url))),
-    [prompts, kind],
-  )
+  const hasImages = useMemo(() => prompts.some((p) => !p.video_url), [prompts])
+  const kind: Kind = params.get('type') === 'video' || (hasVideos && !hasImages) ? 'video' : 'image'
+  const ofKind = useMemo(() => prompts.filter((p) => (kind === 'video') === Boolean(p.video_url)), [prompts, kind])
 
   const setKind = (k: Kind) =>
     setParams(
       (p) => {
-        if (k === 'all') p.delete('type')
+        if (k === 'image') p.delete('type')
         else p.set('type', k)
         p.delete('c')
         return p
@@ -137,7 +134,7 @@ export function PromptsPage() {
 
         <div className="mx-auto max-w-7xl px-4 pb-28 sm:px-6 md:px-8 md:pb-40">
           {/* Filters */}
-          {hasVideos && (
+          {hasVideos && hasImages && (
             <div className="mt-6 inline-flex rounded-full bg-paper-2 p-1" role="tablist" aria-label="Prompt type">
               {KINDS.map((k) => (
                 <button
@@ -213,7 +210,7 @@ export function PromptsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setKind('all')
+                    setActive('all')
                     setQuery('')
                   }}
                   className="mt-6 h-11 rounded-full bg-ink px-6 text-sm font-semibold text-paper"

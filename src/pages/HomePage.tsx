@@ -11,6 +11,7 @@ import { Hero } from '../sections/Hero'
 import { Marquee } from '../sections/Marquee'
 import { PromptShowcase } from '../sections/PromptShowcase'
 import { Services } from '../sections/Services'
+import { VideoShowcase } from '../sections/VideoShowcase'
 
 /** The one-page home site. The full prompt library lives on its own page (/prompts). */
 export function HomePage() {
@@ -44,6 +45,7 @@ export function HomePage() {
         <Hero />
         <About />
         <PromptShowcase />
+        <VideoShowcase />
         <Services />
         <Contact />
         <Marquee />

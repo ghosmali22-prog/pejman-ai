@@ -13,7 +13,8 @@ const INSET_START = 0.28
 
 /** Home-page teaser: giant PRO[image]MPTS heading, a 3D carousel, and a link to the full library. */
 export function PromptShowcase() {
-  const { prompts, loading } = useSiteData()
+  const { prompts: all, loading } = useSiteData()
+  const prompts = all.filter((p) => !p.video_url)
   const { level } = useMotion()
   const headRef = useRef<HTMLDivElement>(null)
   const inset = prompts.find((p) => p.featured) ?? prompts[0]
@@ -67,7 +68,7 @@ export function PromptShowcase() {
             >
               {!loading && (
                 <img
-                  src={inset?.image_url ?? photo900}
+                  src={inset?.image_url || photo900}
                   alt=""
                   loading="lazy"
                   className="inset-img absolute inset-0 size-full object-cover grayscale"
@@ -79,7 +80,7 @@ export function PromptShowcase() {
             </span>
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-center text-base text-paper/55 md:mt-6 md:text-lg">
-            Every image and video comes with the exact prompt that made it. Tap one, copy the prompt, create your own.
+            Every image comes with the exact prompt that made it. Tap one, copy the prompt, create your own.
           </p>
         </div>
       </div>
