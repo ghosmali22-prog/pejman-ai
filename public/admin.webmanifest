@@ -1,9 +1,9 @@
 {
   "name": "PEJMAN AI Admin",
   "short_name": "PEJMAN Admin",
-  "id": "/pejman-ai/admin/",
-  "start_url": "/pejman-ai/admin/",
-  "scope": "/pejman-ai/",
+  "id": "./admin/",
+  "start_url": "./admin/",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0B0D0C",
   "theme_color": "#0B0D0C",

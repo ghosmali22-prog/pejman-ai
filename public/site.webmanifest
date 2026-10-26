@@ -1,7 +1,7 @@
 {
   "name": "PEJMAN AI",
   "short_name": "PEJMAN AI",
-  "start_url": "/pejman-ai/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#0B0D0C",
   "theme_color": "#0B0D0C",
@@ -17,6 +17,6 @@
       "type": "image/png"
     }
   ],
-  "id": "/pejman-ai/",
-  "scope": "/pejman-ai/"
+  "id": "./",
+  "scope": "./"
 }

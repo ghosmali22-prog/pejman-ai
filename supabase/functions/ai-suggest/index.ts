@@ -19,7 +19,13 @@ const ADMIN_EMAILS = (Deno.env.get('ADMIN_EMAILS') ?? 'ghosmali22@gmail.com')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean)
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
-const ALLOWED_ORIGINS = ['https://ghosmali22-prog.github.io', 'http://localhost:5173', 'http://localhost:4173']
+const ALLOWED_ORIGINS = [
+  'https://pejiai.com',
+  'https://www.pejiai.com',
+  'https://ghosmali22-prog.github.io',
+  'http://localhost:5173',
+  'http://localhost:4173',
+]
 
 const MAX_IMAGE_BASE64 = 1_500_000 // ~1.1 MB image
 const MAX_PROMPT = 8_000
