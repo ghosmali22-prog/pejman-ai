@@ -1,0 +1,36 @@
+# Points GitHub Pages at the custom domain (pejiai.com) and turns on "Enforce HTTPS".
+# Run it from Actions → "Set custom domain" → Run workflow. Safe to re-run.
+name: Set custom domain
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/custom-domain.yml']
+
+permissions:
+  pages: write
+
+jobs:
+  domain:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DOMAIN: pejiai.com
+    steps:
+      - name: Current Pages settings
+        run: gh api "repos/$GITHUB_REPOSITORY/pages"
+
+      - name: Set custom domain
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/pages" -f cname="$DOMAIN"
+
+      - name: Enforce HTTPS (waits for the certificate)
+        run: |
+          for i in $(seq 1 20); do
+            if gh api -X PUT "repos/$GITHUB_REPOSITORY/pages" -F https_enforced=true 2>/dev/null; then
+              echo "HTTPS enforced"; gh api "repos/$GITHUB_REPOSITORY/pages"; exit 0
+            fi
+            echo "Certificate not ready yet (try $i/20), waiting 60s"
+            gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.https_certificate // "no certificate yet"' || true
+            sleep 60
+          done
+          echo "::warning::Certificate still not ready. Re-run this workflow later."
