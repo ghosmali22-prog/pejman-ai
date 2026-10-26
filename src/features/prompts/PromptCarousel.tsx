@@ -11,7 +11,8 @@ const clamp = (min: number, max: number, v: number) => Math.min(max, Math.max(mi
  * Endless 3D carousel of prompt images. Cards drift sideways on their own, curve away in
  * depth towards the edges, and the one in the middle is shown in colour. Scrolling the page
  * speeds it up, and it can be dragged/swiped. Tapping a card opens that prompt in the library.
- * Everything moves with transform/opacity only.
+ * Everything moves with transform/opacity only. Video cards only play while they are the
+ * centred (coloured) one, so at most one or two videos decode at a time.
  */
 export function PromptCarousel({ prompts }: { prompts: Prompt[] }) {
   const { level } = useMotion()
@@ -32,6 +33,8 @@ export function PromptCarousel({ prompts }: { prompts: Prompt[] }) {
     const cards = cardRefs.current.slice(0, items.length)
     const colors = cards.map((c) => c.querySelector<HTMLElement>('.carousel-color'))
     const fine = hasFinePointer()
+    const navigatorSaveData =
+      (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
 
     let pos = 0
     let boost = 0
@@ -54,7 +57,14 @@ export function PromptCarousel({ prompts }: { prompts: Prompt[] }) {
         card.style.opacity = String(clamp(0, 1, 1 - (Math.abs(n) - 1.05) * 2.2))
         card.style.zIndex = String(1000 - Math.round(Math.abs(x)))
         const c = colors[i]
-        if (c) c.style.opacity = String(clamp(0, 1, 1 - Math.abs(x) / (spacing * 0.8)))
+        if (c) {
+          const o = clamp(0, 1, 1 - Math.abs(x) / (spacing * 0.8))
+          c.style.opacity = String(o)
+          if (c instanceof HTMLVideoElement && !navigatorSaveData) {
+            if (o > 0.35 && c.paused) c.play().catch(() => {})
+            else if (o <= 0.35 && !c.paused) c.pause()
+          }
+        }
       })
     }
 
@@ -78,6 +88,7 @@ export function PromptCarousel({ prompts }: { prompts: Prompt[] }) {
       },
       onToggle: (self) => {
         visible = self.isActive
+        if (!visible) colors.forEach((c) => c instanceof HTMLVideoElement && c.pause())
       },
     })
 
@@ -191,6 +202,8 @@ function CarouselCard({
   className?: string
   ref?: React.Ref<HTMLAnchorElement>
 }) {
+  const video = prompt.video_url
+
   return (
     <Link
       ref={ref}
@@ -209,14 +222,29 @@ function CarouselCard({
           decoding="async"
           className="absolute inset-0 size-full object-cover grayscale"
         />
-        <img
-          src={prompt.image_url}
-          alt={prompt.title}
-          draggable={false}
-          loading="lazy"
-          decoding="async"
-          className="carousel-color absolute inset-0 size-full object-cover opacity-0"
-        />
+        {video ? (
+          // Played/paused by the carousel itself (only the centred card plays).
+          <video
+            src={video}
+            poster={prompt.image_url}
+            muted
+            loop
+            playsInline
+            preload="none"
+            disablePictureInPicture
+            aria-label={prompt.title}
+            className="carousel-color absolute inset-0 size-full object-cover opacity-0"
+          />
+        ) : (
+          <img
+            src={prompt.image_url}
+            alt={prompt.title}
+            draggable={false}
+            loading="lazy"
+            decoding="async"
+            className="carousel-color absolute inset-0 size-full object-cover opacity-0"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-transparent" />
         <div className="absolute inset-x-4 bottom-4">
           <span className="mb-2 inline-flex rounded-full bg-lime px-2.5 py-1 text-[11px] font-semibold text-ink">

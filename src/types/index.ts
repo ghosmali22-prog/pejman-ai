@@ -21,6 +21,8 @@ export interface Prompt {
   image_url: string
   image_width?: number | null
   image_height?: number | null
+  /** Optional video; image_url is then its poster frame. */
+  video_url?: string | null
   featured: boolean
   published: boolean
   position: number
@@ -96,6 +98,7 @@ export interface Subscriber {
 /** Prompt row as stored in the database (includes admin-only fields). */
 export interface PromptRow extends Prompt {
   image_path?: string | null
+  video_path?: string | null
   updated_at?: string
 }
 

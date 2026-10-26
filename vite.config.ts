@@ -27,6 +27,7 @@ function contentSecurityPolicy(supabaseUrl?: string): Plugin {
           `script-src 'self' ${hashes.join(' ')}`,
           "style-src 'self' 'unsafe-inline'",
           `img-src 'self' data: blob: ${sb}`,
+          `media-src 'self' blob: ${sb}`,
           "font-src 'self'",
           `connect-src 'self' ${sb} ${sb.replace(/^https/, 'wss')}`,
           "object-src 'none'",

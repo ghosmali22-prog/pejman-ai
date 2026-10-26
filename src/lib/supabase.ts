@@ -20,3 +20,4 @@ export const ADMIN_EMAILS = ['ghosmali22@gmail.com']
 export const isAdminEmail = (email?: string | null) => !!email && ADMIN_EMAILS.includes(email.toLowerCase())
 
 export const IMAGE_BUCKET = 'images'
+export const VIDEO_BUCKET = 'videos'

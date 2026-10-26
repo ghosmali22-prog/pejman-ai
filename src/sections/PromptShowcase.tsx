@@ -79,7 +79,7 @@ export function PromptShowcase() {
             </span>
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-center text-base text-paper/55 md:mt-6 md:text-lg">
-            Every image comes with the exact prompt that made it. Tap one, copy the prompt, create your own.
+            Every image and video comes with the exact prompt that made it. Tap one, copy the prompt, create your own.
           </p>
         </div>
       </div>

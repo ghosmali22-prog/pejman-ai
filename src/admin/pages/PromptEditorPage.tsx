@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, ExternalLink, ImagePlus, Loader2, Plus, Sparkles, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, Film, ImagePlus, Loader2, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../../providers/ToastProvider'
@@ -6,7 +6,7 @@ import type { Category, PromptRow } from '../../types'
 import { Button, Card, Field, Input, Select, Spinner, Textarea, Toggle, cx, useConfirm } from '../components/ui'
 import * as api from '../lib/api'
 import { useI18n } from '../lib/i18n'
-import { compressImage, formatBytes, type CompressedImage } from '../lib/image'
+import { compressImage, formatBytes, videoPoster, type CompressedImage } from '../lib/image'
 import { slugify, uniqueSlug } from '../lib/slug'
 
 const MODELS = [
@@ -17,12 +17,24 @@ const MODELS = [
   'Flux 1.1 Pro',
   'Seedream',
   'Kling',
-  'Veo',
+  'Veo 3',
+  'Sora 2',
+  'Runway Gen-4',
+  'Seedance',
+  'Hailuo',
   'Ideogram',
   'Leonardo',
 ]
 const RATIOS = ['1:1', '4:5', '3:4', '2:3', '9:16', '16:9']
 const MODEL_KEY = 'pj-admin-last-model'
+
+/** The listed aspect ratio closest to a width × height. */
+const nearestRatio = (w: number, h: number) =>
+  RATIOS.reduce((best, r) => {
+    const [a, b] = r.split(':').map(Number)
+    const [c, d] = best.split(':').map(Number)
+    return Math.abs(Math.log(a / b / (w / h))) < Math.abs(Math.log(c / d / (w / h))) ? r : best
+  })
 
 /** New prompts start with the model you used last time (Nano Banana Pro the first time). */
 function lastModel() {
@@ -83,15 +95,26 @@ export function PromptEditorPage() {
   // The photo starts uploading the moment it is picked, so "Save" only has to write the row.
   const uploadRef = useRef<Promise<api.UploadedImage | null> | null>(null)
   const savedRef = useRef(false)
+  // Video: uploaded untouched in the background as well; its first frame becomes the cover.
+  const [video, setVideo] = useState<{ file: File; url: string } | null>(null)
+  const [videoRemoved, setVideoRemoved] = useState(false)
+  const [videoBusy, setVideoBusy] = useState(false)
+  const [videoUploading, setVideoUploading] = useState(false)
+  const videoUploadRef = useRef<Promise<api.UploadedVideo | null> | null>(null)
+  const coverFromVideo = useRef(false)
 
-  // Leaving without saving: delete the photo that was uploaded in the background.
+  // Leaving without saving: delete the files that were uploaded in the background.
   useEffect(
     () => () => {
-      if (!savedRef.current) uploadRef.current?.then(api.discardUpload)
+      if (savedRef.current) return
+      uploadRef.current?.then(api.discardUpload)
+      videoUploadRef.current?.then(api.discardVideo)
     },
     [],
   )
+  useEffect(() => () => (video ? URL.revokeObjectURL(video.url) : undefined), [video])
   const fileRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     Promise.all([api.prompts.list(), api.categories.list()]).then(([ps, cs]) => {
@@ -175,19 +198,25 @@ export function PromptEditorPage() {
     }
   }
 
+  /** Shows a compressed cover and starts uploading it. */
+  const applyImage = async (full: CompressedImage) => {
+    const small = await compressImage(new File([full.blob], 'cover', { type: full.blob.type }), 512, 0.8)
+    URL.revokeObjectURL(small.previewUrl)
+    thumbRef.current = small.blob
+    setImage(full)
+    uploadRef.current?.then(api.discardUpload) // a different photo was picked before
+    uploadRef.current = api.uploadPromptImage(full).catch((err) => {
+      console.error(err)
+      return null
+    })
+  }
+
   const onFile = async (file?: File) => {
     if (!file) return
     setCompressing(true)
     try {
-      const [full, small] = await Promise.all([compressImage(file), compressImage(file, 512, 0.8)])
-      URL.revokeObjectURL(small.previewUrl)
-      thumbRef.current = small.blob
-      setImage(full)
-      uploadRef.current?.then(api.discardUpload) // a different photo was picked before
-      uploadRef.current = api.uploadPromptImage(full).catch((err) => {
-        console.error(err)
-        return null
-      })
+      await applyImage(await compressImage(file))
+      coverFromVideo.current = false
     } catch {
       toast(t.error)
       return
@@ -197,6 +226,48 @@ export function PromptEditorPage() {
     }
     // New photo and no title yet → let the AI name it straight away.
     if (!form.title.trim()) runAi({ auto: true })
+  }
+
+  const onVideo = async (file?: File) => {
+    if (videoRef.current) videoRef.current.value = ''
+    if (!file) return
+    if (file.size > api.MAX_VIDEO_BYTES) return toast(t.videoTooBig)
+    setVideoBusy(true)
+    try {
+      const poster = await videoPoster(file)
+      // Use the video's frame as the cover unless you picked your own cover photo.
+      if (!image && !row?.image_url) coverFromVideo.current = true
+      if (coverFromVideo.current || (!image && row?.video_url && !videoRemoved)) {
+        await applyImage(poster)
+        coverFromVideo.current = true
+      } else URL.revokeObjectURL(poster.previewUrl)
+      setRatio(nearestRatio(poster.width, poster.height))
+    } catch (err) {
+      console.error(err)
+      // The browser could not decode it (e.g. HEVC .mov): still upload, cover stays as is.
+    } finally {
+      setVideoBusy(false)
+    }
+    setVideo({ file, url: URL.createObjectURL(file) })
+    setVideoRemoved(false)
+    videoUploadRef.current?.then(api.discardVideo)
+    setVideoUploading(true)
+    const upload = api.uploadPromptVideo(file).catch((err) => {
+      console.error(err)
+      toast(t.videoFailed)
+      return null
+    })
+    videoUploadRef.current = upload
+    upload.finally(() => videoUploadRef.current === upload && setVideoUploading(false))
+    if (!form.title.trim()) runAi({ auto: true })
+  }
+
+  const removeVideo = () => {
+    videoUploadRef.current?.then(api.discardVideo)
+    videoUploadRef.current = null
+    setVideo(null)
+    setVideoUploading(false)
+    setVideoRemoved(true)
   }
 
   const addTag = (raw: string) => {
@@ -238,6 +309,13 @@ export function PromptEditorPage() {
         uploaded = (await uploadRef.current) ?? (await api.uploadPromptImage(image))
         uploadRef.current = Promise.resolve(uploaded)
       }
+      let savedVideo: api.UploadedVideo | null = null
+      if (video) {
+        savedVideo = (await videoUploadRef.current) ?? (await api.uploadPromptVideo(video.file))
+        videoUploadRef.current = Promise.resolve(savedVideo)
+      } else if (videoRemoved && row?.video_url) {
+        savedVideo = { video_url: null, video_path: null }
+      }
       const settings = Object.fromEntries(
         form.settings.filter((s) => s.k.trim() && s.v.trim()).map((s) => [s.k.trim(), s.v.trim()]),
       )
@@ -257,6 +335,7 @@ export function PromptEditorPage() {
         },
         {
           image: uploaded,
+          video: savedVideo,
           existing: row,
           position: Math.min(0, ...all.map((p) => p.position)) - 1,
         },
@@ -291,6 +370,7 @@ export function PromptEditorPage() {
   if (!loaded) return <Spinner />
 
   const preview = image?.previewUrl ?? row?.image_url
+  const videoPreview = video?.url ?? (videoRemoved ? null : row?.video_url)
   const Back = dir === 'rtl' ? ArrowRight : ArrowLeft
   const publicUrl = `${window.location.origin}${import.meta.env.BASE_URL}p/${form.slug || '…'}`
 
@@ -363,6 +443,59 @@ export function PromptEditorPage() {
                 {t.changeImage}
               </Button>
             )}
+          </div>
+
+          <div className="mt-5 border-t border-white/10 pt-4">
+            <p className="mb-3 text-[13px] font-medium text-paper/70">{t.video}</p>
+            {videoPreview ? (
+              <div className="relative overflow-hidden rounded-2xl bg-ink ring-1 ring-white/10">
+                <video
+                  src={videoPreview}
+                  controls
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                  className="max-h-[50vh] w-full"
+                />
+                {videoUploading && (
+                  <span className="absolute start-2 top-2 flex items-center gap-1.5 rounded-full bg-ink/80 px-3 py-1.5 text-xs">
+                    <Loader2 className="size-3.5 animate-spin text-lime" /> {t.videoUploading}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => videoRef.current?.click()}
+                className="flex h-16 w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/10 bg-ink text-sm font-medium text-paper/60 transition hover:border-lime/50"
+              >
+                {videoBusy ? <Loader2 className="size-5 animate-spin text-lime" /> : <Film className="size-5" />}
+                {t.chooseVideo}
+              </button>
+            )}
+            <input
+              ref={videoRef}
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime"
+              className="hidden"
+              onChange={(e) => onVideo(e.target.files?.[0])}
+            />
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <p className="text-xs text-paper/40">
+                {video ? `${video.file.name} · ${formatBytes(video.file.size)}` : t.videoHint}
+              </p>
+              {videoPreview && (
+                <div className="flex shrink-0 gap-2">
+                  <Button size="sm" onClick={() => videoRef.current?.click()} loading={videoBusy}>
+                    {t.changeVideo}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={removeVideo} aria-label={t.removeVideo}>
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </Card>
 
@@ -591,7 +724,7 @@ export function PromptEditorPage() {
           type="submit"
           variant="lime"
           size="lg"
-          loading={saving || compressing}
+          loading={saving || compressing || videoBusy}
           className="w-full shadow-[0_10px_30px_-8px_rgb(198_244_50/0.6)] lg:w-auto lg:px-10"
         >
           {saving ? t.saving : t.save}
