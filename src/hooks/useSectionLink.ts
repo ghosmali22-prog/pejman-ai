@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMotion } from '../providers/MotionProvider'
 
-export type SectionId = 'top' | 'about' | 'prompts' | 'services' | 'contact'
+export type SectionId = 'top' | 'code' | 'about' | 'prompts' | 'services' | 'contact'
 
 /**
  * Smooth-scrolls to a home-page section, navigating home first when needed.

@@ -106,3 +106,42 @@ export interface DailyCopies {
   day: string
   copies: number
 }
+
+/** One file of a code item. Single-file items have exactly one. */
+export interface CodeFile {
+  name: string
+  /** Short language id, e.g. "html", "css", "js", "tsx". */
+  language: string
+  content: string
+}
+
+/** Ready-made UI code shown in the Code section (as the public website receives it). */
+export interface CodeItem {
+  id: string
+  slug: string
+  title: string
+  short_description: string
+  /** Free text, e.g. "Dashboard", "Glass UI". */
+  category: string
+  /** Language of the main file. */
+  language: string
+  /** Main file. Empty for premium items. */
+  code: string
+  /** Every file of a multi-file item; empty for single-file items (and premium items). */
+  files: CodeFile[]
+  preview_image_url?: string | null
+  live_preview_enabled: boolean
+  is_featured: boolean
+  /** Sold on request: the code is never sent to visitors. */
+  is_premium: boolean
+  sort_order: number
+  copy_count: number
+  created_at: string
+}
+
+/** code_items row as stored in the database (includes admin-only fields). */
+export interface CodeItemRow extends CodeItem {
+  is_published: boolean
+  preview_image_path?: string | null
+  updated_at?: string
+}

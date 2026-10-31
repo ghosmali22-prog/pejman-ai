@@ -24,3 +24,6 @@ export async function copyText(text: string): Promise<boolean> {
 
 export const promptUrl = (slug: string) =>
   new URL(`p/${slug}`, window.location.origin + import.meta.env.BASE_URL).toString()
+
+export const codeUrl = (slug: string) =>
+  new URL(`?code=${slug}`, window.location.origin + import.meta.env.BASE_URL).toString()

@@ -55,7 +55,7 @@ export function PromptsPage() {
   useEffect(() => {
     document.title = 'Prompt library · PEJMAN AI'
     return () => {
-      document.title = 'PEJMAN AI — AI photos, motion, websites & automations · AI prompts'
+      document.title = 'PEJMAN AI — Ready-made UI code, websites & AI content'
     }
   }, [])
 

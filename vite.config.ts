@@ -30,6 +30,8 @@ function contentSecurityPolicy(supabaseUrl?: string): Plugin {
           `media-src 'self' blob: ${sb}`,
           "font-src 'self'",
           `connect-src 'self' ${sb} ${sb.replace(/^https/, 'wss')}`,
+          // Code previews: only /sandbox.html, always embedded with sandbox="allow-scripts".
+          "frame-src 'self'",
           "object-src 'none'",
           "base-uri 'self'",
           "form-action 'self'",

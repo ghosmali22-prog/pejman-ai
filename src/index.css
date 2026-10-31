@@ -121,3 +121,64 @@ html[data-motion='lite'] [data-theme='light'] {
 .prompt-card.is-active .prompt-color {
   opacity: 1;
 }
+
+/* Code section: syntax colours (highlight.js classes), tuned to the dark / lime palette. */
+.code-view .hljs-keyword,
+.code-view .hljs-selector-tag,
+.code-view .hljs-built_in,
+.code-view .hljs-literal {
+  color: var(--color-lime);
+}
+.code-view .hljs-string,
+.code-view .hljs-regexp,
+.code-view .hljs-template-tag {
+  color: #f2c879;
+}
+.code-view .hljs-number,
+.code-view .hljs-symbol {
+  color: #ff9e64;
+}
+.code-view .hljs-comment,
+.code-view .hljs-quote,
+.code-view .hljs-meta {
+  color: #6b716d;
+  font-style: italic;
+}
+.code-view .hljs-tag,
+.code-view .hljs-name,
+.code-view .hljs-selector-class,
+.code-view .hljs-selector-id {
+  color: #7dd3fc;
+}
+.code-view .hljs-attr,
+.code-view .hljs-attribute,
+.code-view .hljs-property,
+.code-view .hljs-variable,
+.code-view .hljs-params {
+  color: #c4b5fd;
+}
+.code-view .hljs-title,
+.code-view .hljs-title.function_,
+.code-view .hljs-title.class_ {
+  color: #fff;
+  font-weight: 600;
+}
+.code-view .hljs-punctuation,
+.code-view .hljs-operator {
+  color: rgb(255 255 255 / 0.55);
+}
+
+/* Glass card hover glow that follows the pointer (set by --mx / --my). */
+.code-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgb(198 244 50 / 0.14), transparent 60%);
+}
+.code-card:hover::before {
+  opacity: 1;
+}

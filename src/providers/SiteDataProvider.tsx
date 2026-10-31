@@ -1,13 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { defaultSettings } from '../config/site'
+import { fetchCodeItems } from '../services/code'
 import { fetchCategories, fetchPrompts } from '../services/prompts'
 import { fetchSettings } from '../services/settings'
-import type { Category, Prompt, SiteSettings } from '../types'
+import type { Category, CodeItem, Prompt, SiteSettings } from '../types'
 
 interface SiteData {
   settings: SiteSettings
   prompts: Prompt[]
   categories: Category[]
+  codeItems: CodeItem[]
   loading: boolean
   error: string | null
 }
@@ -19,18 +21,20 @@ export function SiteDataProvider({ children }: { children: ReactNode }) {
     settings: defaultSettings,
     prompts: [],
     categories: [],
+    codeItems: [],
     loading: true,
     error: null,
   })
 
   useEffect(() => {
     let alive = true
-    Promise.allSettled([fetchSettings(), fetchPrompts(), fetchCategories()]).then(([s, p, c]) => {
+    Promise.allSettled([fetchSettings(), fetchPrompts(), fetchCategories(), fetchCodeItems()]).then(([s, p, c, code]) => {
       if (!alive) return
       setState({
         settings: s.status === 'fulfilled' ? s.value : defaultSettings,
         prompts: p.status === 'fulfilled' ? p.value : [],
         categories: c.status === 'fulfilled' ? c.value : [],
+        codeItems: code.status === 'fulfilled' ? code.value : [],
         loading: false,
         error: p.status === 'rejected' ? 'Could not load prompts. Please refresh.' : null,
       })

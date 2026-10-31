@@ -7,7 +7,8 @@ import { useMotion } from '../../providers/MotionProvider'
 import { useSiteData } from '../../providers/SiteDataProvider'
 import { InstagramIcon, TelegramIcon, WhatsAppIcon } from '../ui/BrandIcons'
 
-const LINKS: { id: SectionId; label: string }[] = [
+const LINKS: { id: SectionId; label: string; primary?: boolean }[] = [
+  { id: 'code', label: 'Code', primary: true },
   { id: 'prompts', label: 'Prompts' },
   { id: 'about', label: 'About' },
   { id: 'services', label: 'Services' },
@@ -92,8 +93,13 @@ export function Navbar() {
                 <button
                   type="button"
                   onClick={() => handle(l.id)}
-                  className="rounded-full px-4 py-2 text-sm font-medium text-paper/75 transition-colors hover:text-paper"
+                  className={
+                    l.primary
+                      ? 'inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-4 py-2 text-sm font-semibold text-paper ring-1 ring-lime/30 transition-colors hover:bg-white/[0.14]'
+                      : 'rounded-full px-4 py-2 text-sm font-medium text-paper/75 transition-colors hover:text-paper'
+                  }
                 >
+                  {l.primary && <span className="size-1.5 rounded-full bg-lime shadow-[0_0_8px_rgb(198_244_50/0.9)]" />}
                   {l.label}
                 </button>
               </li>
@@ -142,7 +148,7 @@ export function Navbar() {
                     animate={{ y: 0 }}
                     exit={{ y: '100%' }}
                     transition={{ duration: 0.7, delay: 0.05 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                    className="heading block py-1 text-left text-[15vw] text-paper"
+                    className={`heading block py-1 text-left text-[15vw] ${l.primary ? 'text-lime' : 'text-paper'}`}
                   >
                     {l.label}
                   </motion.button>

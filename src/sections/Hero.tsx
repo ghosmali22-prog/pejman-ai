@@ -1,5 +1,5 @@
 import { useGSAP } from '@gsap/react'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Code2 } from 'lucide-react'
 import { lazy, Suspense, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import photo1600 from '../assets/hero/pejman-1600.webp'
@@ -196,6 +196,7 @@ export function Hero() {
             subline={settings.hero.subline}
             play={introDone}
             onWork={() => go('contact')}
+            onCode={() => go('code')}
             onBrowse={() => go('prompts')}
           />
         </div>
@@ -278,12 +279,14 @@ function HeroCopy({
   headline,
   subline,
   play,
+  onCode,
   onBrowse,
   onWork,
 }: {
   headline: string
   subline: string
   play: boolean
+  onCode: () => void
   onBrowse: () => void
   onWork: () => void
 }) {
@@ -300,21 +303,32 @@ function HeroCopy({
         />
         <p className="hero-fade mt-4 max-w-md text-[15px] leading-relaxed text-paper/65 md:text-base">{subline}</p>
       </div>
-      <div className="hero-fade flex flex-col gap-3 sm:flex-row md:shrink-0">
+      <div className="hero-fade flex flex-col items-stretch gap-3 md:shrink-0 md:items-end">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={onCode}
+            className="group inline-flex h-14 items-center justify-center gap-2 rounded-full bg-lime px-7 text-base font-semibold text-ink shadow-[0_10px_40px_-12px_rgb(198_244_50/0.7)] transition-transform duration-300 hover:scale-[1.03] active:scale-[0.98]"
+          >
+            <Code2 className="size-5" />
+            Get UI code
+            <ArrowRight className="size-5 transition-transform duration-300 group-hover:translate-x-1" />
+          </button>
+          <button
+            type="button"
+            onClick={onWork}
+            className="inline-flex h-14 items-center justify-center rounded-full bg-white/8 px-7 text-base font-semibold text-paper ring-1 ring-white/15 backdrop-blur transition-colors duration-300 hover:bg-white/15"
+          >
+            Work with me
+          </button>
+        </div>
         <button
           type="button"
           onClick={onBrowse}
-          className="group inline-flex h-14 items-center justify-center gap-2 rounded-full bg-lime px-7 text-base font-semibold text-ink transition-transform duration-300 hover:scale-[1.03] active:scale-[0.98]"
+          className="group inline-flex items-center justify-center gap-1.5 text-sm font-medium text-paper/60 transition-colors hover:text-paper md:justify-end"
         >
-          Browse prompts
-          <ArrowRight className="size-5 transition-transform duration-300 group-hover:translate-x-1" />
-        </button>
-        <button
-          type="button"
-          onClick={onWork}
-          className="inline-flex h-14 items-center justify-center rounded-full bg-white/8 px-7 text-base font-semibold text-paper ring-1 ring-white/15 backdrop-blur transition-colors duration-300 hover:bg-white/15"
-        >
-          Work with me
+          or browse AI prompts
+          <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5" />
         </button>
       </div>
     </div>
