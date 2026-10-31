@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 // auth and storage schemas, then checks every Row Level Security rule as visitor / stranger / admin.
 // Usage: npm run test:db
 const MIGRATION = new URL('../migrations/001_init.sql', import.meta.url)
+const LATER = ['002_videos.sql', '003_any_video_format.sql', '004_code_items.sql'].map((f) => new URL(`../migrations/${f}`, import.meta.url))
 const db = new PGlite()
 const stub = `
 create role anon nologin; create role authenticated nologin;
@@ -21,6 +22,10 @@ grant usage on schema public to anon, authenticated;
 await db.exec(stub)
 await db.exec(readFileSync(MIGRATION, 'utf8'))
 await db.exec(readFileSync(MIGRATION, 'utf8')) // must be safe to run twice
+for (const m of LATER) {
+  await db.exec(readFileSync(m, 'utf8'))
+  await db.exec(readFileSync(m, 'utf8'))
+}
 console.log('migration ran twice OK')
 
 let pass = 0, fail = 0
@@ -81,5 +86,40 @@ await as('admin', `update categories set slug='portraits' where slug='portrait' 
 console.log('cascade →', JSON.stringify((await db.query(`select slug, category from prompts where slug='pub-one'`)).rows))
 await as('admin', `delete from categories where slug='product' returning slug`, true, 'admin deletes category')
 console.log('set null →', JSON.stringify((await db.query(`select slug, category from prompts where slug='draft-one'`)).rows))
+// ---- code_items
+await as('admin', `insert into code_items (slug,title,language,code,files,is_published,is_premium) values
+  ('free-one','Free','html','<h1>free</h1>','[{"name":"index.html","language":"html","content":"<h1>free</h1>"}]',true,false),
+  ('paid-one','Paid','tsx','SECRET_CODE','[{"name":"App.tsx","language":"tsx","content":"SECRET_FILE"}]',true,true),
+  ('draft-code','Draft','css','a{}','[]',false,false) returning slug`, true, 'admin can insert code items')
+await as('stranger', `insert into code_items (slug,title) values ('x','X')`, false, 'other Google account cannot insert code')
+await as('anon', `insert into code_items (slug,title) values ('y','Y')`, false, 'visitor cannot insert code')
+const codeVis = await as('anon', `select slug from code_items order by slug`, true, 'visitor reads code table directly')
+const visSlugs = codeVis.rows.map((r) => r.slug).join(',')
+console.log(visSlugs === 'free-one' ? 'PASS  table shows visitor only the free published item' : `FAIL  visitor saw: ${visSlugs}`); visSlugs === 'free-one' ? pass++ : fail++
+const list = await as('anon', `select slug, code, files::text as files, is_premium, live_preview_enabled from list_code_items()`, true, 'visitor lists code items')
+const paid = list.rows.find((r) => r.slug === 'paid-one'), free = list.rows.find((r) => r.slug === 'free-one')
+const hidden = paid && paid.code === '' && paid.files === '[]' && !paid.live_preview_enabled && !JSON.stringify(list.rows).includes('SECRET')
+console.log(hidden ? 'PASS  premium item listed without its code' : 'FAIL  premium code leaked'); hidden ? pass++ : fail++
+const okFree = free && free.code === '<h1>free</h1>' && !list.rows.some((r) => r.slug === 'draft-code')
+console.log(okFree ? 'PASS  free item has code, draft hidden' : 'FAIL  list wrong'); okFree ? pass++ : fail++
+await as('stranger', `update code_items set title='hacked' returning slug`, true, 'stranger update code (should affect 0 rows)')
+const ct = (await db.query(`select count(*)::int as n from code_items where title='hacked'`)).rows[0].n
+console.log(ct === 0 ? 'PASS  stranger changed no code items' : 'FAIL  stranger changed code'); ct === 0 ? pass++ : fail++
+await as('anon', `delete from code_items returning slug`, false, 'visitor cannot delete code')
+const cids = Object.fromEntries((await db.query(`select slug, id from code_items`)).rows.map((r) => [r.slug, r.id]))
+await as('anon', `select increment_code_copy('${cids['free-one']}')`, true, 'visitor code copy +1')
+await as('anon', `select increment_code_copy('${cids['paid-one']}')`, true, 'visitor copy on premium (no effect)')
+await as('anon', `select increment_code_copy('${cids['draft-code']}')`, true, 'visitor copy on draft (no effect)')
+const cc2 = Object.fromEntries((await db.query(`select slug, copy_count from code_items`)).rows.map((r) => [r.slug, r.copy_count]))
+const okcc = cc2['free-one'] === 1 && cc2['paid-one'] === 0 && cc2['draft-code'] === 0
+console.log(okcc ? 'PASS  code copy counts correct' : `FAIL  code copy counts ${JSON.stringify(cc2)}`); okcc ? pass++ : fail++
+await as('anon', `update code_items set copy_count = 999 returning slug`, false, 'visitor cannot set code copy_count')
+await as('admin', `update code_items set is_premium=false where slug='paid-one' returning slug`, true, 'admin can edit code items')
+await as('admin', `insert into code_items (slug,title,code) values ('big','Big',repeat('x', 1048577))`, false, 'code over 1 MB rejected')
+await as('anon', `insert into storage.objects (bucket_id,name) values ('code','a.webp')`, false, 'visitor cannot upload to code bucket')
+await as('stranger', `insert into storage.objects (bucket_id,name) values ('code','a.webp')`, false, 'stranger cannot upload to code bucket')
+await as('admin', `insert into storage.objects (bucket_id,name) values ('code','a.webp') returning name`, true, 'admin can upload to code bucket')
+await as('admin', `delete from code_items where slug='draft-code' returning slug`, true, 'admin can delete code items')
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
