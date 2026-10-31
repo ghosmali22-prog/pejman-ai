@@ -21,3 +21,4 @@ export const isAdminEmail = (email?: string | null) => !!email && ADMIN_EMAILS.i
 
 export const IMAGE_BUCKET = 'images'
 export const VIDEO_BUCKET = 'videos'
+export const CODE_BUCKET = 'code'

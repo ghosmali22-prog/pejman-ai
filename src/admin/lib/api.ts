@@ -1,9 +1,18 @@
 import { defaultSettings } from '../../config/site'
+import { sampleCodeItems } from '../../data/sampleCode'
 import { sampleCategories, samplePrompts } from '../../data/samples'
 import { SUPABASE_KEY, SUPABASE_URL } from '../../lib/config'
-import { IMAGE_BUCKET, supabase, VIDEO_BUCKET } from '../../lib/supabase'
+import { CODE_BUCKET, IMAGE_BUCKET, supabase, VIDEO_BUCKET } from '../../lib/supabase'
 import { mergeSettings } from '../../services/settings'
-import type { Category, ContactMessage, DailyCopies, PromptRow, SiteSettings, Subscriber } from '../../types'
+import type {
+  Category,
+  CodeItemRow,
+  ContactMessage,
+  DailyCopies,
+  PromptRow,
+  SiteSettings,
+  Subscriber,
+} from '../../types'
 import type { CompressedImage } from './image'
 
 /**
@@ -24,6 +33,7 @@ const uid = () => crypto.randomUUID()
 const store = {
   prompts: samplePrompts.map<PromptRow>((p, i) => ({ ...p, created_at: days(i * 3) })),
   categories: [...sampleCategories],
+  code: sampleCodeItems.map<CodeItemRow>((c) => ({ ...c, is_published: true })),
   messages: [
     {
       id: uid(),
@@ -128,19 +138,19 @@ export function discardUpload(img?: UploadedImage | null) {
   if (img?.image_path) removeImage(img.image_path).catch(() => {})
 }
 
-async function uploadImage(img: CompressedImage): Promise<UploadedImage> {
-  const path = `prompts/${uid()}.${img.ext}`
+async function uploadImage(img: CompressedImage, bucket = IMAGE_BUCKET, folder = 'prompts'): Promise<UploadedImage> {
+  const path = `${folder}/${uid()}.${img.ext}`
   const { error } = await sb()
-    .storage.from(IMAGE_BUCKET)
+    .storage.from(bucket)
     .upload(path, img.blob, { contentType: img.blob.type, cacheControl: '31536000', upsert: false })
   if (error) throw error
-  const { data } = sb().storage.from(IMAGE_BUCKET).getPublicUrl(path)
+  const { data } = sb().storage.from(bucket).getPublicUrl(path)
   return { image_url: data.publicUrl, image_path: path, image_width: img.width, image_height: img.height }
 }
 
-async function removeImage(path?: string | null) {
+async function removeImage(path?: string | null, bucket = IMAGE_BUCKET) {
   if (!path || demo) return
-  await sb().storage.from(IMAGE_BUCKET).remove([path])
+  await sb().storage.from(bucket).remove([path])
 }
 
 export type UploadedVideo = Pick<PromptRow, 'video_url' | 'video_path'>
@@ -274,6 +284,100 @@ export const prompts = {
       return
     }
     await Promise.all(changed.map((r) => run(sb().from('prompts').update({ position: r.next }).eq('id', r.id))))
+  },
+}
+
+// ---------------------------------------------------------------- code items
+export type UploadedPreview = Pick<CodeItemRow, 'preview_image_url' | 'preview_image_path'>
+
+/** Uploads a code item's screenshot to the "code" bucket (compress it first with `compressImage`). */
+export async function uploadCodePreview(img: CompressedImage): Promise<UploadedPreview> {
+  if (demo) return { preview_image_url: URL.createObjectURL(img.blob), preview_image_path: null }
+  const up = await uploadImage(img, CODE_BUCKET, 'previews')
+  return { preview_image_url: up.image_url, preview_image_path: up.image_path }
+}
+
+/** Removes a screenshot that ended up unused (replaced, or editor left without saving). */
+export function discardCodePreview(img?: UploadedPreview | null) {
+  if (img?.preview_image_path) removeImage(img.preview_image_path, CODE_BUCKET).catch(() => {})
+}
+
+export type CodeDraft = Omit<CodeItemRow, 'id' | 'copy_count' | 'created_at' | 'sort_order'> & { id?: string }
+
+export const code = {
+  async list(): Promise<CodeItemRow[]> {
+    if (demo) return [...store.code].sort((a, b) => a.sort_order - b.sort_order)
+    const rows = await run<CodeItemRow[]>(
+      sb()
+        .from('code_items')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: false }),
+    )
+    return rows.map((r) => ({ ...r, files: Array.isArray(r.files) ? r.files : [] }))
+  },
+
+  /**
+   * Creates or updates an item. Deletes the old screenshot after it was replaced or removed
+   * (pass preview_image_url: null to remove it).
+   */
+  async save(draft: CodeDraft, opts: { existing?: CodeItemRow | null; sortOrder?: number } = {}): Promise<CodeItemRow> {
+    const { id, ...row } = draft
+    const { existing } = opts
+    if (demo) {
+      const current = id ? store.code.find((c) => c.id === id) : null
+      if (current) return Object.assign(current, row)
+      const created: CodeItemRow = {
+        ...(row as CodeItemRow),
+        id: uid(),
+        copy_count: 0,
+        created_at: new Date().toISOString(),
+        sort_order: opts.sortOrder ?? Math.min(0, ...store.code.map((c) => c.sort_order)) - 1,
+      }
+      store.code.push(created)
+      return created
+    }
+    if (id) {
+      const saved = await run<CodeItemRow>(sb().from('code_items').update(row).eq('id', id).select().single())
+      if (existing?.preview_image_path && existing.preview_image_path !== saved.preview_image_path) {
+        removeImage(existing.preview_image_path, CODE_BUCKET).catch(() => {})
+      }
+      return saved
+    }
+    return run<CodeItemRow>(
+      sb()
+        .from('code_items')
+        .insert({ ...row, sort_order: opts.sortOrder ?? Math.round(-Date.now() / 1000) })
+        .select()
+        .single(),
+    )
+  },
+
+  async update(id: string, patch: Partial<CodeItemRow>) {
+    if (demo) {
+      Object.assign(store.code.find((c) => c.id === id) ?? {}, patch)
+      return
+    }
+    await run(sb().from('code_items').update(patch).eq('id', id))
+  },
+
+  async remove(row: CodeItemRow) {
+    if (demo) {
+      store.code = store.code.filter((c) => c.id !== row.id)
+      return
+    }
+    await run(sb().from('code_items').delete().eq('id', row.id))
+    await removeImage(row.preview_image_path, CODE_BUCKET).catch(() => {})
+  },
+
+  /** Saves a new order: sort_order = index in the given list. */
+  async reorder(rows: { id: string; sort_order: number }[]) {
+    const changed = rows.map((r, i) => ({ ...r, next: i })).filter((r) => r.sort_order !== r.next)
+    if (demo) {
+      changed.forEach((r) => Object.assign(store.code.find((c) => c.id === r.id) ?? {}, { sort_order: r.next }))
+      return
+    }
+    await Promise.all(changed.map((r) => run(sb().from('code_items').update({ sort_order: r.next }).eq('id', r.id))))
   },
 }
 

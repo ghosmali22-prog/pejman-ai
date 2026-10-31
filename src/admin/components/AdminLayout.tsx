@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  Code2,
   ExternalLink,
   Image as ImageIcon,
   Inbox,
@@ -35,7 +36,10 @@ export function AdminLayout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
   // Form pages have their own big Save button at the bottom, so the tab bar steps aside.
-  const formPage = /^\/admin\/(prompts\/[^/]+|settings)\/?$/.test(location.pathname)
+  const formPage = /^\/admin\/(prompts\/[^/]+|code\/[^/]+|settings)\/?$/.test(location.pathname)
+  // The big + adds whatever you are looking at: code on the Code pages, a prompt elsewhere.
+  const onCode = location.pathname.startsWith('/admin/code')
+  const addTo = onCode ? '/admin/code/new' : '/admin/prompts/new'
 
   useEffect(() => {
     setMoreOpen(false)
@@ -44,6 +48,7 @@ export function AdminLayout() {
 
   const main: Item[] = [
     { to: '/admin', label: t.dashboard, Icon: LayoutDashboard },
+    { to: '/admin/code', label: t.code, Icon: Code2 },
     { to: '/admin/prompts', label: t.prompts, Icon: ImageIcon },
     { to: '/admin/categories', label: t.categories, Icon: Tags },
   ]
@@ -184,11 +189,11 @@ export function AdminLayout() {
         style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         aria-label="Admin"
       >
-        <BottomLink to="/admin" end Icon={LayoutDashboard} label={t.dashboard} />
+        <BottomLink to="/admin/code" Icon={Code2} label={t.code} />
         <BottomLink to="/admin/prompts" Icon={ImageIcon} label={t.prompts} />
         <Link
-          to="/admin/prompts/new"
-          aria-label={t.addPrompt}
+          to={addTo}
+          aria-label={onCode ? t.addCode : t.addPrompt}
           className="-mt-8 flex size-16 items-center justify-center rounded-full bg-lime text-ink shadow-[0_10px_30px_-6px_rgb(198_244_50/0.6)] ring-4 ring-ink"
         >
           <Plus className="size-7" strokeWidth={2.4} />
@@ -236,7 +241,7 @@ export function AdminLayout() {
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {[...main.slice(2), ...manage.slice(1)].map((it) => (
+                {[main[0], ...main.slice(3), ...manage.slice(1)].map((it) => (
                   <Link
                     key={it.to}
                     to={it.to}
@@ -246,6 +251,13 @@ export function AdminLayout() {
                     <span className="text-sm font-medium">{it.label}</span>
                   </Link>
                 ))}
+                <Link
+                  to={onCode ? '/admin/prompts/new' : '/admin/code/new'}
+                  className="flex h-20 flex-col justify-center gap-2 rounded-2xl bg-white/[0.04] px-4 ring-1 ring-white/[0.07]"
+                >
+                  <Plus className="size-5 text-lime" />
+                  <span className="text-sm font-medium">{onCode ? t.addPrompt : t.addCode}</span>
+                </Link>
                 <a
                   href={import.meta.env.BASE_URL}
                   target="_blank"

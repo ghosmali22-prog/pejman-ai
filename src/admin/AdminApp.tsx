@@ -8,6 +8,8 @@ import * as api from './lib/api'
 import { AdminContext } from './lib/context'
 import { I18nProvider, useI18n } from './lib/i18n'
 import { CategoriesPage } from './pages/CategoriesPage'
+import { CodeEditorPage } from './pages/CodeEditorPage'
+import { CodeListPage } from './pages/CodeListPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { MessagesPage } from './pages/MessagesPage'
@@ -92,6 +94,9 @@ function Shell() {
             <Routes>
               <Route element={<AdminLayout />}>
                 <Route index element={<DashboardPage />} />
+                <Route path="code" element={<CodeListPage />} />
+                <Route path="code/new" element={<CodeEditorPage />} />
+                <Route path="code/:id" element={<CodeEditorPage />} />
                 <Route path="prompts" element={<PromptsPage />} />
                 <Route path="prompts/new" element={<PromptEditorPage />} />
                 <Route path="prompts/:id" element={<PromptEditorPage />} />
