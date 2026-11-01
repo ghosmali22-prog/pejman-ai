@@ -22,7 +22,6 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const ALLOWED_ORIGINS = [
   'https://pejiai.com',
   'https://www.pejiai.com',
-  'https://ghosmali22-prog.github.io',
   'http://localhost:5173',
   'http://localhost:4173',
 ]
@@ -57,8 +56,10 @@ Deno.serve(async (req) => {
     headers: { apikey, Authorization: `Bearer ${token}` },
   })
   if (!userRes.ok) return json({ error: 'Not signed in' }, 401)
-  const user = (await userRes.json()) as { email?: string }
-  if (!ADMIN_EMAILS.includes(String(user.email ?? '').toLowerCase())) return json({ error: 'Forbidden' }, 403)
+  const user = (await userRes.json()) as { email?: string; app_metadata?: { providers?: string[] } }
+  // Same rule as public.is_admin(): the owner Gmail, signed in with Google (never a password account).
+  const viaGoogle = user.app_metadata?.providers?.includes('google') === true
+  if (!viaGoogle || !ADMIN_EMAILS.includes(String(user.email ?? '').toLowerCase())) return json({ error: 'Forbidden' }, 403)
   if (!GEMINI_KEY) return json({ error: 'GEMINI_API_KEY secret is not set' }, 500)
 
   // --- input -----------------------------------------------------------------
