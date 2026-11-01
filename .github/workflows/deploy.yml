@@ -1,33 +1,46 @@
-# Builds the site and publishes it to GitHub Pages on every push to main.
+# Tests every pull request; on every push to main it tests, builds and publishes the site to
+# GitHub Pages (pejiai.com), then checks the live site and database from the outside.
 #
 # Supabase connection: the URL and the *publishable* key below are public by design —
 # they ship inside the website's JavaScript anyway. The database is protected by
 # Row Level Security (see supabase/migrations), not by hiding this key.
 # Repository secrets with the same names, if you add them, take priority.
 # NEVER put the service_role / secret key here: the "Block leaked secret keys" step fails the build if you do.
+#
+# Security: least-privilege permissions per job, and every third-party action is pinned to an
+# exact commit (the comment shows its version). Dependabot proposes updates.
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: pages-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://icoiyuifywvtrlfagkdz.supabase.co' }}
+  VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_gFpwndMFKSylPYd5y-r6qA_25mm-uKq' }}
+  VITE_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY || '' }}
 
 jobs:
   build:
+    name: Test and build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -36,24 +49,51 @@ jobs:
 
       - name: Block leaked secret keys
         run: |
-          if git grep -nIE 'sb_secret_[A-Za-z0-9_-]{10,}|service_role"?\s*[:=]\s*"?eyJ|GOCSPX-[A-Za-z0-9_-]{10,}|AIza[0-9A-Za-z_-]{30,}|AQ\.[A-Za-z0-9_-]{30,}' -- . ':!package-lock.json'; then
+          if git grep -nIE 'sb_secret_[A-Za-z0-9_-]{10,}|service_role"?\s*[:=]\s*"?eyJ|GOCSPX-[A-Za-z0-9_-]{10,}|AIza[0-9A-Za-z_-]{30,}|AQ\.[A-Za-z0-9_-]{30,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY' -- . ':!package-lock.json'; then
             echo "::error::A secret key was found in the repository. Remove it and rotate it in Supabase/Google."
             exit 1
           fi
 
+      - name: Check dependencies for known high-risk vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
       - name: Check database security rules
         run: npm run test:db
 
+      - name: Check the protected-demo builder
+        run: npm run test:demo
+
+      - name: Install the test browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests (demo mode, desktop + phone)
+        run: npm run test:e2e
+        env:
+          CI: 'true'
+
+      - name: Keep the browser-test report if something failed
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-results
+          path: test-results
+          retention-days: 7
+
       # Tells us where Pages serves the site: "" on pejiai.com, "/pejman-ai" on github.io.
       - id: pages
-        uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Build
         run: npm run build
         env:
           VITE_BASE: ${{ steps.pages.outputs.base_path }}/
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://icoiyuifywvtrlfagkdz.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_gFpwndMFKSylPYd5y-r6qA_25mm-uKq' }}
 
       - name: Check the built site never contains a secret key
         run: |
@@ -61,16 +101,41 @@ jobs:
             echo "::error::The build contains a secret key." && exit 1
           fi
 
-      - uses: actions/upload-pages-artifact@v3
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: dist
 
   deploy:
+    name: Publish to pejiai.com
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+  live-check:
+    name: Check the live site
+    if: github.event_name != 'pull_request'
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Wait for the new version to reach the CDN
+        run: sleep 45
+      - name: Security checks against the live site and database
+        run: node tests/live-smoke.mjs
