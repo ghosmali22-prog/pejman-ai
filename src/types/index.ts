@@ -75,6 +75,10 @@ export interface ContactMessageInput {
   work_mode?: string
   budget?: string
   message: string
+  /** Hidden honeypot field: real people leave it empty. */
+  company?: string
+  /** Cloudflare Turnstile token (when Turnstile is switched on). */
+  turnstileToken?: string
 }
 
 export interface ContactMessage {
@@ -130,7 +134,11 @@ export interface CodeItem {
   /** Every file of a multi-file item; empty for single-file items (and premium items). */
   files: CodeFile[]
   preview_image_url?: string | null
+  /** Short looping preview video (premium items), shown instead of the screenshot. */
+  preview_video_url?: string | null
   live_preview_enabled: boolean
+  /** Premium item with a protected live demo (fetched through the demo-url function). */
+  has_demo?: boolean
   is_featured: boolean
   /** Sold on request: the code is never sent to visitors. */
   is_premium: boolean
@@ -143,5 +151,11 @@ export interface CodeItem {
 export interface CodeItemRow extends CodeItem {
   is_published: boolean
   preview_image_path?: string | null
+  preview_video_path?: string | null
+  /** Per-item switch for the protected live demo. */
+  demo_enabled?: boolean
+  /** Path of the generated demo inside the private "demos" bucket. */
+  demo_path?: string | null
+  demo_updated_at?: string | null
   updated_at?: string
 }

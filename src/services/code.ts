@@ -1,6 +1,6 @@
-import { sampleCodeItems } from '../data/sampleCode'
-import { isSupabaseConfigured } from '../lib/config'
-import { rest } from '../lib/rest'
+import { sampleCodeItems, sampleDemoSource } from '../data/sampleCode'
+import { isSupabaseConfigured, SUPABASE_URL } from '../lib/config'
+import { callFunction, rest } from '../lib/rest'
 import type { CodeItem } from '../types'
 
 /**
@@ -11,6 +11,27 @@ export async function fetchCodeItems(): Promise<CodeItem[]> {
   if (!isSupabaseConfigured) return sampleCodeItems
   const rows = await rest<CodeItem[]>('rpc/list_code_items')
   return rows.map((c) => ({ ...c, files: Array.isArray(c.files) ? c.files : [] }))
+}
+
+/**
+ * The protected live demo of a premium item, as one HTML document for the sandboxed preview.
+ * The demo-url function returns a signed link that expires within minutes; the document behind it
+ * is an obfuscated, watermarked build — never the item's source.
+ */
+export async function loadDemo(slug: string): Promise<string> {
+  if (!isSupabaseConfigured) {
+    // Demo mode (local preview / tests): build the sample demo the same way the admin panel does.
+    const { buildDemoDocument, loadObfuscator } = await import('../lib/demoBuild')
+    return buildDemoDocument(sampleDemoSource(), slug, await loadObfuscator())
+  }
+  const res = await callFunction('demo-url', { slug })
+  if (res.status === 429) throw new Error('Too many demo requests — please try again in a little while')
+  if (!res.ok) throw new Error('Demo unavailable')
+  const { url } = (await res.json()) as { url: string }
+  if (!url?.startsWith(`${SUPABASE_URL}/storage/v1/object/sign/demos/`)) throw new Error('Demo unavailable')
+  const doc = await fetch(url, { cache: 'no-store', referrerPolicy: 'no-referrer' })
+  if (!doc.ok) throw new Error('Demo unavailable')
+  return doc.text()
 }
 
 const copiedKey = (id: string) => `pj-code-copied-${id}`

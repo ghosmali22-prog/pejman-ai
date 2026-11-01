@@ -10,16 +10,23 @@ const MAX_SIDE = 1920
  * to the original file if the browser can't do it or the result isn't smaller.
  * The library is loaded only when a video is picked.
  */
-export async function compressVideo(file: File, onProgress?: (fraction: number) => void): Promise<File> {
+export async function compressVideo(
+  file: File,
+  onProgress?: (fraction: number) => void,
+  /** Premium preview clips: smaller frame, no sound, always re-encoded. */
+  opts: { maxSide?: number; audio?: boolean; skipBelowBytes?: number } = {},
+): Promise<File> {
+  const maxSide = opts.maxSide ?? MAX_SIDE
+  const skipBelow = opts.skipBelowBytes ?? SKIP_BELOW_BYTES
   try {
     const mb = await import('mediabunny')
     const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS })
     const track = await input.getPrimaryVideoTrack()
     if (!track) return file
     const { displayWidth: w, displayHeight: h } = track
-    const big = Math.max(w, h) > MAX_SIDE
+    const big = Math.max(w, h) > maxSide
     const playsEverywhere = track.codec === 'avc' && file.type === 'video/mp4'
-    if (playsEverywhere && !big && file.size <= SKIP_BELOW_BYTES) return file
+    if (playsEverywhere && !big && file.size <= skipBelow && opts.audio !== false) return file
 
     const output = new mb.Output({
       format: new mb.Mp4OutputFormat({ fastStart: 'in-memory' }),
@@ -29,12 +36,12 @@ export async function compressVideo(file: File, onProgress?: (fraction: number) 
       input,
       output,
       video: {
-        ...(big ? (w >= h ? { width: MAX_SIDE } : { height: MAX_SIDE }) : {}),
+        ...(big ? (w >= h ? { width: maxSide } : { height: maxSide }) : {}),
         codec: 'avc',
         quality: mb.QUALITY_HIGH,
         forceTranscode: true,
       },
-      audio: { codec: 'aac', quality: mb.QUALITY_HIGH },
+      audio: opts.audio === false ? { discard: true } : { codec: 'aac', quality: mb.QUALITY_HIGH },
     })
     if (!conversion.isValid) return file
     conversion.onProgress = (p) => onProgress?.(p)

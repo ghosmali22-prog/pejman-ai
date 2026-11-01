@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, ArrowRight, ExternalLink, FileCode2, ImagePlus, Loader2, Plus, Trash2, Upload, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, ExternalLink, FileCode2, Film, ImagePlus, Loader2, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CodePreview } from '../../features/code/CodePreview'
@@ -13,6 +13,7 @@ import {
   runsInBrowser,
   titleFromFileName,
 } from '../../lib/code'
+import { buildDemoDocument, DEMO_ORIGINS, loadObfuscator } from '../../lib/demoBuild'
 import { useToast } from '../../providers/ToastProvider'
 import type { CodeFile, CodeItemRow } from '../../types'
 import { Button, Card, Field, Input, Select, Spinner, Textarea, Toggle, cx, useConfirm } from '../components/ui'
@@ -20,6 +21,7 @@ import * as api from '../lib/api'
 import { ACCEPT, CodeFileError, readCodeUpload } from '../lib/codeFiles'
 import { useI18n } from '../lib/i18n'
 import { compressImage, formatBytes, type CompressedImage } from '../lib/image'
+import { compressVideo } from '../lib/video'
 import { slugify, uniqueSlug } from '../lib/slug'
 
 const CATEGORIES = ['Dashboard', 'Landing section', 'Glass UI', 'Animation', 'Component', 'Full page', 'Form', 'Navbar', 'Card']
@@ -34,6 +36,7 @@ interface Form {
   is_featured: boolean
   is_premium: boolean
   live_preview_enabled: boolean
+  demo_enabled: boolean
 }
 
 const empty: Form = {
@@ -45,9 +48,12 @@ const empty: Form = {
   is_featured: false,
   is_premium: false,
   live_preview_enabled: true,
+  demo_enabled: true,
 }
 
 const blankFile = (): CodeFile => ({ name: 'index.html', language: 'html', content: '' })
+/** Same files → same demo; anything changed → the demo is rebuilt on save. */
+const filesKey = (fs: CodeFile[]) => JSON.stringify(fs.map((f) => [f.name, f.content]))
 
 export function CodeEditorPage() {
   const { id } = useParams()
@@ -79,9 +85,26 @@ export function CodeEditorPage() {
   const codeInput = useRef<HTMLInputElement>(null)
   const imageInput = useRef<HTMLInputElement>(null)
 
+  // Premium preview video: compressed (no sound, max 1280px) and uploaded in the background.
+  const [video, setVideo] = useState<{ url: string } | null>(null)
+  const [videoRemoved, setVideoRemoved] = useState(false)
+  const [videoProgress, setVideoProgress] = useState<{ stage: 'compress' | 'upload'; pct: number } | null>(null)
+  const videoRef = useRef<Promise<api.UploadedCodeVideo | null> | null>(null)
+  const videoJob = useRef(0)
+  const videoInput = useRef<HTMLInputElement>(null)
+
+  // Protected live demo: built in this browser, previewed here, uploaded on save.
+  const [demo, setDemo] = useState<{ key: string; html: string } | null>(null)
+  const [building, setBuilding] = useState(false)
+  const [showDemo, setShowDemo] = useState(false)
+  const builtPath = useRef<string | null>(null)
+
   useEffect(
     () => () => {
-      if (!savedRef.current) uploadRef.current?.then(api.discardCodePreview)
+      if (savedRef.current) return
+      uploadRef.current?.then(api.discardCodePreview)
+      videoRef.current?.then(api.discardCodeVideo)
+      api.discardDemo(builtPath.current)
     },
     [],
   )
@@ -103,6 +126,7 @@ export function CodeEditorPage() {
           is_featured: r.is_featured,
           is_premium: r.is_premium,
           live_preview_enabled: r.live_preview_enabled,
+          demo_enabled: r.demo_enabled ?? false,
         })
         setFiles(
           r.files.length
@@ -124,6 +148,10 @@ export function CodeEditorPage() {
   const hasCode = files.some((f) => f.content.trim())
   const browserReady = runsInBrowser(files.filter((f) => f.content.trim()))
   const preview = imageRemoved ? null : (image?.previewUrl ?? row?.preview_image_url ?? null)
+  const videoUrl = videoRemoved ? null : (video?.url ?? row?.preview_video_url ?? null)
+  const liveFiles = useMemo(() => files.filter((f) => f.content.trim()), [files])
+  const demoFresh = demo?.key === filesKey(liveFiles)
+  const lockedHere = !DEMO_ORIGINS.includes(window.location.origin)
 
   const updateFile = (i: number, change: Partial<CodeFile>) =>
     setFiles((fs) => fs.map((f, j) => (j === i ? { ...f, ...change } : f)))
@@ -186,6 +214,71 @@ export function CodeEditorPage() {
     setImageRemoved(true)
   }
 
+  const onVideo = async (picked?: File) => {
+    if (videoInput.current) videoInput.current.value = ''
+    if (!picked) return
+    videoRef.current?.then(api.discardCodeVideo)
+    const job = ++videoJob.current
+    const current = () => videoJob.current === job
+    setVideoRemoved(false)
+    setVideo({ url: URL.createObjectURL(picked) })
+    setVideoProgress({ stage: 'compress', pct: 0 })
+    const upload = (async () => {
+      const small = await compressVideo(picked, (f) => current() && setVideoProgress({ stage: 'compress', pct: Math.round(f * 100) }), {
+        maxSide: 1280,
+        audio: false,
+        skipBelowBytes: 0,
+      })
+      if (!current()) return null
+      if (small.size > api.MAX_CODE_VIDEO_BYTES) throw new Error('too-big')
+      if (small !== picked) setVideo({ url: URL.createObjectURL(small) })
+      return api.uploadCodeVideo(small, (f) => current() && setVideoProgress({ stage: 'upload', pct: Math.round(f * 100) }))
+    })().catch((err) => {
+      console.error(err)
+      if (current()) {
+        toast(err instanceof Error && err.message === 'too-big' ? t.codeVideoTooBig : /video/i.test(String(err)) ? t.notAVideo : t.videoFailed)
+        setVideo(null)
+      }
+      return null
+    })
+    videoRef.current = upload
+    upload.finally(() => current() && setVideoProgress(null))
+  }
+
+  const removeVideo = () => {
+    videoJob.current++
+    videoRef.current?.then(api.discardCodeVideo)
+    videoRef.current = null
+    setVideo(null)
+    setVideoProgress(null)
+    setVideoRemoved(true)
+  }
+
+  /** Builds the protected demo from the current files (never stored with the source). */
+  const buildDemo = async () => {
+    const key = filesKey(liveFiles)
+    if (demo?.key === key) return demo.html
+    setBuilding(true)
+    try {
+      const slug = slugify(form.slug) || slugify(form.title) || 'demo'
+      const html = buildDemoDocument(liveFiles, slug, await loadObfuscator())
+      setDemo({ key, html })
+      return html
+    } finally {
+      setBuilding(false)
+    }
+  }
+
+  const onPreviewDemo = async () => {
+    try {
+      await buildDemo()
+      setShowDemo(true)
+    } catch (err) {
+      console.error(err)
+      toast(t.demoFailed)
+    }
+  }
+
   const addFile = () => {
     const used = new Set(files.map((f) => f.name))
     const name = ['style.css', 'script.js', 'index.html'].find((x) => !used.has(x)) ?? `file-${files.length + 1}.js`
@@ -222,6 +315,24 @@ export function CodeEditorPage() {
       } else if (imageRemoved) {
         shot = { preview_image_url: null, preview_image_path: null }
       }
+      let clip: api.UploadedCodeVideo | null = null
+      if (videoRef.current) clip = await videoRef.current
+      else if (videoRemoved) clip = { preview_video_url: null, preview_video_path: null }
+
+      // Premium + demo on: (re)build the protected demo when the code changed or none exists yet.
+      let demoFields: Partial<CodeItemRow> = {}
+      if (form.is_premium && form.demo_enabled && runsInBrowser(kept)) {
+        const savedFiles = row
+          ? row.files.length
+            ? row.files
+            : [{ name: `${row.slug}.${extForLanguage(row.language)}`, language: row.language, content: row.code }]
+          : []
+        if (!row?.demo_path || filesKey(kept) !== filesKey(savedFiles)) {
+          const html = await buildDemo()
+          builtPath.current = await api.uploadDemo(html)
+          demoFields = { demo_path: builtPath.current, demo_updated_at: new Date().toISOString() }
+        }
+      }
       await api.code.save(
         {
           id: row?.id,
@@ -236,6 +347,9 @@ export function CodeEditorPage() {
           is_featured: form.is_featured,
           is_published: form.is_published,
           is_premium: form.is_premium,
+          demo_enabled: form.demo_enabled,
+          ...demoFields,
+          ...(clip ?? {}),
           ...(shot ?? (row ? {} : { preview_image_url: null, preview_image_path: null })),
         } as api.CodeDraft,
         { existing: row, sortOrder: Math.min(0, ...all.map((c) => c.sort_order)) - 1 },
@@ -503,6 +617,92 @@ export function CodeEditorPage() {
             )}
           </Card>
 
+          {form.is_premium && (
+            <Card className="flex flex-col gap-4 p-4 md:p-5">
+              <p className="flex items-center gap-2 text-[13px] font-semibold text-lime">
+                <ShieldCheck className="size-4" /> {t.premiumPreview}
+              </p>
+
+              {/* Preview video */}
+              <div>
+                <p className="text-[13px] font-medium text-paper/70">{t.previewVideo}</p>
+                <p className="mt-1 text-xs leading-relaxed text-paper/40">{t.previewVideoHint}</p>
+                {videoUrl ? (
+                  <div className="relative mt-3 overflow-hidden rounded-2xl bg-ink ring-1 ring-white/10">
+                    <video src={videoUrl} muted loop playsInline autoPlay className="max-h-72 w-full object-contain" />
+                    {videoProgress && (
+                      <span className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-ink/80 px-3 py-2 text-xs">
+                        <Loader2 className="size-4 animate-spin text-lime" />
+                        {videoProgress.stage === 'compress' ? t.compressing : t.uploading} {n(videoProgress.pct)}%
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => videoInput.current?.click()}
+                    className="mt-3 flex h-24 w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/10 bg-ink text-sm font-medium text-paper/55 ring-1 ring-white/10 transition hover:ring-lime/50"
+                  >
+                    <Film className="size-5 text-lime" /> {t.chooseVideo}
+                  </button>
+                )}
+                <input ref={videoInput} type="file" accept="video/*" className="hidden" onChange={(e) => onVideo(e.target.files?.[0])} />
+                {videoUrl && (
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button size="sm" onClick={() => videoInput.current?.click()}>
+                      {t.changeVideo}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={removeVideo} aria-label={t.removeVideo}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Protected live demo */}
+              <div className="border-t border-white/[0.06] pt-4">
+                <Toggle checked={form.demo_enabled} onChange={(v) => set('demo_enabled', v)} label={t.liveDemo} />
+                <p className="mt-1 px-1 text-xs leading-relaxed text-paper/40">{t.liveDemoHint}</p>
+                {form.demo_enabled && hasCode && !browserReady && (
+                  <p className="mt-3 flex gap-2 rounded-2xl bg-amber-400/10 px-3.5 py-3 text-[13px] leading-relaxed text-amber-200 ring-1 ring-amber-400/20">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {t.liveDemoNeedsHtml}
+                  </p>
+                )}
+                {form.demo_enabled && browserReady && (
+                  <>
+                    <p className="mt-3 px-1 text-xs text-paper/55" data-testid="demo-status">
+                      {row?.demo_updated_at && !demo
+                        ? t.demoBuilt(new Date(row.demo_updated_at).toLocaleString())
+                        : demoFresh
+                          ? t.demoBuilt(t.saved)
+                          : t.demoWillBuild}
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Button size="sm" variant="lime" onClick={onPreviewDemo} loading={building}>
+                        {building ? t.buildingDemo : demo ? t.rebuildDemo : t.buildDemo}
+                      </Button>
+                      {showDemo && (
+                        <Button size="sm" variant="ghost" onClick={() => setShowDemo(false)}>
+                          {t.hidePreview}
+                        </Button>
+                      )}
+                    </div>
+                    {showDemo && demo && (
+                      <>
+                        {lockedHere && <p className="mt-3 px-1 text-xs text-amber-200/80">{t.demoLockedHere}</p>}
+                        <CodePreview
+                          html={demo.html}
+                          title={`${form.title || 'Demo'} (protected demo)`}
+                          className="mt-3 aspect-[4/3] w-full rounded-2xl ring-1 ring-white/10"
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            </Card>
+          )}
+
           <Card className="flex flex-col gap-2 p-4 md:p-5">
             <Toggle
               checked={form.is_published}
@@ -538,7 +738,7 @@ export function CodeEditorPage() {
           type="submit"
           variant="lime"
           size="lg"
-          loading={saving || compressing || reading}
+          loading={saving || compressing || reading || building || videoProgress !== null}
           className="w-full shadow-[0_10px_30px_-8px_rgb(198_244_50/0.6)] lg:w-auto lg:px-10"
         >
           {saving ? t.saving : t.save}

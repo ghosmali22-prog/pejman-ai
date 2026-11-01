@@ -52,3 +52,11 @@ export async function rest<T = unknown>(
     window.clearTimeout(timer)
   }
 }
+
+/** POST to a Supabase Edge Function with the public key (same header rules as `rest`). */
+export function callFunction(name: string, body: unknown): Promise<Response> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Supabase is not configured')
+  const headers: Record<string, string> = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }
+  if (SUPABASE_KEY.startsWith('eyJ')) headers.Authorization = `Bearer ${SUPABASE_KEY}`
+  return fetch(`${SUPABASE_URL}/functions/v1/${name}`, { method: 'POST', headers, body: JSON.stringify(body) })
+}

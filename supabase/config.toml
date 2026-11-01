@@ -4,3 +4,11 @@ project_id = "icoiyuifywvtrlfagkdz"
 # The function checks the signed-in admin itself, so the gateway's legacy JWT check is off.
 [functions.ai-suggest]
 verify_jwt = false
+
+# Public functions (no sign-in): they check the origin, validate every field and rate-limit
+# each visitor themselves; the secret service key never leaves Supabase.
+[functions.demo-url]
+verify_jwt = false
+
+[functions.contact]
+verify_jwt = false

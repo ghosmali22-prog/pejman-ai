@@ -2,9 +2,10 @@ import { Lock } from 'lucide-react'
 import { canLivePreview, itemFiles, languageLabel } from '../../lib/code'
 import type { CodeItem } from '../../types'
 import { CodePreview, type Device } from './CodePreview'
+import { PremiumVideo } from './PremiumVideo'
 
 /**
- * What a code item looks like: its screenshot, a live preview (plain HTML/CSS/JS),
+ * What a code item looks like: a premium item's preview video, its screenshot, a live preview (plain HTML/CSS/JS),
  * or — for React/TSX and other code that can't run as is — a designed placeholder.
  */
 export function CodeThumb({
@@ -24,6 +25,9 @@ export function CodeThumb({
   const runnable = canLivePreview(item)
   const image = item.preview_image_url
 
+  if (item.is_premium && item.preview_video_url) {
+    return <PremiumVideo src={item.preview_video_url} poster={image} title={item.title} thumbnail={thumbnail} className={className} />
+  }
   if (image && (!runnable || !live)) {
     return (
       <div className={`relative overflow-hidden bg-ink-3 ${className}`}>

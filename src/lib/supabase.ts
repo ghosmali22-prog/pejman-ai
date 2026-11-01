@@ -22,3 +22,7 @@ export const isAdminEmail = (email?: string | null) => !!email && ADMIN_EMAILS.i
 export const IMAGE_BUCKET = 'images'
 export const VIDEO_BUCKET = 'videos'
 export const CODE_BUCKET = 'code'
+/** Premium preview videos (public, MP4/WebM, max 15 MB). */
+export const CODE_VIDEO_BUCKET = 'code-videos'
+/** Protected demo builds (PRIVATE: reachable only through short-lived signed links). */
+export const DEMO_BUCKET = 'demos'

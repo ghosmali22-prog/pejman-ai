@@ -5,10 +5,11 @@ import { readFileSync } from 'node:fs'
 // auth and storage schemas, then checks every Row Level Security rule as visitor / stranger / admin.
 // Usage: npm run test:db
 const MIGRATION = new URL('../migrations/001_init.sql', import.meta.url)
-const LATER = ['002_videos.sql', '003_any_video_format.sql', '004_code_items.sql'].map((f) => new URL(`../migrations/${f}`, import.meta.url))
+const LATER = ['002_videos.sql', '003_any_video_format.sql', '004_code_items.sql', '005_security_and_demos.sql', '006_close_direct_inserts.sql'].map((f) => new URL(`../migrations/${f}`, import.meta.url))
 const db = new PGlite()
 const stub = `
-create role anon nologin; create role authenticated nologin;
+create role anon nologin; create role authenticated nologin; create role service_role nologin;
+create publication supabase_realtime;
 create schema auth;
 create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
 grant usage on schema auth to anon, authenticated; grant execute on function auth.jwt() to anon, authenticated;
@@ -26,15 +27,28 @@ for (const m of LATER) {
   await db.exec(readFileSync(m, 'utf8'))
   await db.exec(readFileSync(m, 'utf8'))
 }
+// Re-running 005 after 006 must not reopen direct inserts.
+await db.exec(readFileSync(LATER[3], 'utf8'))
 console.log('migration ran twice OK')
 
 let pass = 0, fail = 0
+const google = { provider: 'google', providers: ['google'] }
+const CLAIMS = {
+  anon: {},
+  service: {},
+  admin: { email: 'GhosMali22@gmail.com', app_metadata: google },
+  // Same address, but signed up with a password: must NOT be admin.
+  fakeadmin: { email: 'ghosmali22@gmail.com', app_metadata: { provider: 'email', providers: ['email'] } },
+  stranger: { email: 'stranger@gmail.com', app_metadata: google },
+}
+let ip = '203.0.113.1' // visitor IP for the rate limits; tests change it
+const check = (good, label) => { good ? pass++ : fail++; console.log(`${good ? 'PASS' : 'FAIL'}  ${label}`) }
 async function as(who, sql, expectOk, label) {
-  const claims = who === 'anon' ? '{}' : JSON.stringify({ email: who === 'admin' ? 'GhosMali22@gmail.com' : 'stranger@gmail.com' })
-  const role = who === 'anon' ? 'anon' : 'authenticated'
+  const claims = JSON.stringify(CLAIMS[who] ?? {})
+  const role = who === 'anon' ? 'anon' : who === 'service' ? 'service_role' : 'authenticated'
   let ok = true, out
   try {
-    await db.exec(`reset role; select set_config('request.jwt.claims', '${claims}', false); set role ${role};`)
+    await db.exec(`reset role; select set_config('request.jwt.claims', '${claims}', false); select set_config('request.headers', '${JSON.stringify({ 'x-forwarded-for': ip })}', false); set role ${role};`)
     out = await db.query(sql)
   } catch (e) { ok = false; out = e.message }
   await db.exec('reset role;')
@@ -54,14 +68,17 @@ await as('stranger', `update prompts set title='hacked' where slug='pub-one' ret
 const t = await db.query(`select title from prompts where slug='pub-one'`)
 console.log(t.rows[0].title === 'Published' ? 'PASS  title unchanged after stranger update' : 'FAIL  stranger changed a prompt'); t.rows[0].title === 'Published' ? pass++ : fail++
 await as('anon', `delete from categories where slug='3d' returning slug`, false, 'visitor cannot delete categories')
-await as('anon', `insert into messages (name,email,message,project_type,work_mode) values ('Ann','ann@x.com','hi','Websites','Remote')`, true, 'visitor can send a message')
-await as('anon', `insert into messages (name,email,message,is_read) values ('Ann','ann@x.com','hi',true)`, false, 'visitor cannot mark own message read')
-await as('anon', `insert into messages (name,email,message) values ('Ann','not-an-email','hi')`, false, 'invalid email rejected')
+await as('anon', `insert into messages (name,email,message,project_type,work_mode) values ('Ann','ann@x.com','hi','Websites','Remote')`, false, 'visitor cannot write messages directly (only via the contact function)')
+await as('anon', `select submit_contact('Ann','ann@x.com','Websites','Remote','','hi','k1')`, false, 'visitor cannot call submit_contact directly')
+await as('service', `select submit_contact('Ann','ann@x.com','Websites','Remote','','hi','k1')`, true, 'contact function can save a message')
+await as('service', `select submit_contact('Ann','not-an-email','','','','hi','k1')`, false, 'invalid email rejected')
 const msgs = await as('anon', `select * from messages`, false, 'visitor cannot read messages')
 await as('stranger', `select count(*) from messages`, true, 'stranger sees 0 messages')
 await as('admin', `update messages set is_read = true returning name, is_read`, true, 'admin can mark messages read')
-await as('anon', `insert into subscribers (email) values ('fan@x.com')`, true, 'visitor can subscribe')
-await as('anon', `insert into subscribers (email) values ('fan@x.com')`, false, 'duplicate subscribe → unique error (handled in app)')
+await as('anon', `insert into subscribers (email) values ('fan@x.com')`, false, 'visitor cannot insert subscribers directly')
+await as('anon', `select subscribe_newsletter('Fan@X.com ')`, true, 'visitor can subscribe through the function')
+await as('anon', `select subscribe_newsletter('fan@x.com')`, true, 'duplicate subscribe is accepted quietly')
+await as('anon', `select subscribe_newsletter('nope')`, false, 'subscribe rejects a bad email')
 await as('anon', `select * from subscribers`, false, 'visitor cannot read subscribers')
 await as('anon', `select data from site_settings`, true, 'visitor can read site settings')
 await as('anon', `update site_settings set data='{"x":1}' returning id`, false, 'visitor cannot change settings')
@@ -93,7 +110,8 @@ await as('admin', `insert into code_items (slug,title,language,code,files,is_pub
   ('draft-code','Draft','css','a{}','[]',false,false) returning slug`, true, 'admin can insert code items')
 await as('stranger', `insert into code_items (slug,title) values ('x','X')`, false, 'other Google account cannot insert code')
 await as('anon', `insert into code_items (slug,title) values ('y','Y')`, false, 'visitor cannot insert code')
-const codeVis = await as('anon', `select slug from code_items order by slug`, true, 'visitor reads code table directly')
+await as('anon', `select slug from code_items`, false, 'visitor cannot read the code table directly')
+const codeVis = await as('stranger', `select slug from code_items order by slug`, true, 'stranger reads code table directly')
 const visSlugs = codeVis.rows.map((r) => r.slug).join(',')
 console.log(visSlugs === 'free-one' ? 'PASS  table shows visitor only the free published item' : `FAIL  visitor saw: ${visSlugs}`); visSlugs === 'free-one' ? pass++ : fail++
 const list = await as('anon', `select slug, code, files::text as files, is_premium, live_preview_enabled from list_code_items()`, true, 'visitor lists code items')
@@ -120,6 +138,118 @@ await as('anon', `insert into storage.objects (bucket_id,name) values ('code','a
 await as('stranger', `insert into storage.objects (bucket_id,name) values ('code','a.webp')`, false, 'stranger cannot upload to code bucket')
 await as('admin', `insert into storage.objects (bucket_id,name) values ('code','a.webp') returning name`, true, 'admin can upload to code bucket')
 await as('admin', `delete from code_items where slug='draft-code' returning slug`, true, 'admin can delete code items')
+
+// ---- 005: admin identity
+await as('fakeadmin', `insert into code_items (slug,title) values ('fake','Fake') returning slug`, false, 'owner email signed up with a password is NOT admin')
+check(Number((await as('fakeadmin', `select count(*)::int n from messages`, true, 'password account with owner email reads messages')).rows[0].n) === 0, 'password account with owner email sees 0 messages')
+check(!(await db.query(`select 1 from code_items where slug='fake'`)).rows.length, 'fake admin created nothing')
+
+// ---- 005: premium source never reaches a non-admin, by any route
+await as('admin', `insert into code_items (slug,title,language,code,files,is_published,is_premium,demo_enabled,demo_path,preview_video_url) values
+  ('secret-one','Secret','html','TOP_SECRET_SOURCE','[{"name":"index.html","language":"html","content":"TOP_SECRET_FILE"}]',true,true,true,'d/abc.html','https://x/v.mp4'),
+  ('secret-off','Secret off','html','TOP_SECRET_SOURCE','[]',true,true,false,'d/off.html',null),
+  ('secret-draft','Secret draft','html','TOP_SECRET_SOURCE','[]',false,true,true,'d/draft.html',null) returning slug`, true, 'admin adds premium items with demos')
+
+// Tries a query as `who`; returns the rows, or null when refused. Never counts as pass/fail itself.
+async function probe(who, sql) {
+  const role = who === 'anon' ? 'anon' : who === 'service' ? 'service_role' : 'authenticated'
+  try {
+    await db.exec(`reset role; select set_config('request.jwt.claims', '${JSON.stringify(CLAIMS[who] ?? {})}', false); select set_config('request.headers', '{"x-forwarded-for":"192.0.2.50"}', false); set role ${role};`)
+    return (await db.query(sql)).rows
+  } catch {
+    return null
+  } finally {
+    await db.exec('reset role;')
+  }
+}
+
+const rels = (await db.query(`select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','v','m')`)).rows.map((r) => r.relname)
+const fns = (await db.query(`select p.proname, pg_get_function_identity_arguments(p.oid) args from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prokind='f' and p.prorettype <> 'trigger'::regtype`)).rows
+for (const who of ['anon', 'stranger', 'fakeadmin']) {
+  const leaks = []
+  for (const rel of rels) {
+    const rows = await probe(who, `select t::text as row from public."${rel}" t`)
+    const txt = JSON.stringify(rows ?? '')
+    if (txt.includes('TOP_SECRET') || txt.includes('d/abc.html')) leaks.push(rel)
+  }
+  for (const f of fns) {
+    const args = f.args
+      ? f.args.split(',').map((a) => (a.includes('uuid') ? 'gen_random_uuid()' : a.includes('integer') ? '7' : "'secret-one'")).join(',')
+      : ''
+    const txt = JSON.stringify((await probe(who, `select * from public.${f.proname}(${args})`)) ?? '')
+    if (txt.includes('TOP_SECRET') || txt.includes('d/abc.html')) leaks.push(f.proname + '()')
+  }
+  // storage: a visitor can never read a demo file's row (signed links are made only by the server)
+  const objs = await probe(who, `select name from storage.objects where bucket_id='demos'`)
+  if (objs && objs.length) leaks.push('storage demos')
+  check(leaks.length === 0, `${who}: premium source and demo path unreachable from every table, view, function and bucket ${leaks.join(', ')}`)
+}
+
+const anonFns = (await db.query(`select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prorettype <> 'trigger'::regtype and has_function_privilege('anon', p.oid, 'execute') order by 1`)).rows.map((r) => r.proname).join(',')
+check(anonFns === 'increment_code_copy,increment_copy_count,is_admin,list_code_items,subscribe_newsletter', `visitors can call only the public functions (${anonFns})`)
+const anonGrants = (await db.query(`select table_name || ':' || string_agg(privilege_type, '+' order by privilege_type) g from information_schema.role_table_grants where grantee='anon' and table_schema='public' group by table_name order by 1`)).rows.map((r) => r.g).join(',')
+check(anonGrants === 'categories:SELECT,prompts:SELECT,site_settings:SELECT', `visitors have only read rights on public tables (${anonGrants})`)
+const noRls = (await db.query(`select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity`)).rows
+check(noRls.length === 0, `RLS is on for every table ${JSON.stringify(noRls)}`)
+check((await db.query(`select table_name from information_schema.views where table_schema='public'`)).rows.length === 0, 'no public views that could bypass RLS')
+check((await db.query(`select tablename from pg_publication_tables where pubname='supabase_realtime'`)).rows.length === 0, 'no table is broadcast over Realtime')
+check((await probe('anon', `select * from private.rate_limits`)) === null, 'private schema closed to visitors')
+check((await probe('anon', `select private.rate_ok('x','y',1,60)`)) === null, 'visitors cannot touch the rate limiter')
+
+const listed = (await as('anon', `select slug, code, files::text f, has_demo, preview_video_url from list_code_items()`, true, 'visitor lists premium items')).rows
+const s1 = listed.find((r) => r.slug === 'secret-one'), s2 = listed.find((r) => r.slug === 'secret-off')
+check(s1 && s1.has_demo === true && s1.code === '' && s1.f === '[]' && s1.preview_video_url === 'https://x/v.mp4', 'premium item shows video + "has demo", no code')
+check(s2 && s2.has_demo === false, 'demo switched off → has_demo false')
+check(!listed.some((r) => r.slug === 'secret-draft'), 'unpublished premium item not listed')
+
+// ---- 005: demo links
+await as('anon', `select demo_request('secret-one','v1')`, false, 'visitor cannot call demo_request directly')
+await as('stranger', `select demo_request('secret-one','v1')`, false, 'stranger cannot call demo_request directly')
+const dr = async (slug, key) => (await probe('service', `select demo_request('${slug}','${key}') p`))?.[0]?.p
+check((await dr('secret-one', 'v1')) === 'd/abc.html', 'demo function gets the private path of an enabled demo')
+check((await dr('secret-off', 'v1')) === null, 'no path when the demo is switched off')
+check((await dr('secret-draft', 'v1')) === null, 'no path for an unpublished item')
+check((await dr('free-one', 'v1')) === null, 'no path for a free item')
+let limited = false
+for (let i = 0; i < 31 && !limited; i++) limited = (await probe('service', `select demo_request('secret-one','bulk')`)) === null
+check(limited, 'demo links are rate-limited per visitor (30/hour)')
+
+// ---- 005: storage — nothing can be written by non-admins
+for (const bucket of ['demos', 'code-videos', 'images', 'videos', 'code']) {
+  for (const who of ['anon', 'stranger', 'fakeadmin']) {
+    check((await probe(who, `insert into storage.objects (bucket_id,name) values ('${bucket}','x') returning name`)) === null, `${who} cannot upload to ${bucket}`)
+  }
+}
+await as('admin', `insert into storage.objects (bucket_id,name) values ('demos','d/abc.html') returning name`, true, 'admin can upload a demo')
+for (const who of ['anon', 'stranger']) {
+  check(((await probe(who, `select name from storage.objects where bucket_id='demos'`)) ?? []).length === 0, `${who} sees no demo files`)
+  check(((await probe(who, `update storage.objects set name='y' returning name`)) ?? []).length === 0, `${who} cannot change files`)
+  check(((await probe(who, `delete from storage.objects returning name`)) ?? []).length === 0, `${who} cannot delete files`)
+}
+const buckets = Object.fromEntries((await db.query(`select id, public, file_size_limit from storage.buckets`)).rows.map((b) => [b.id, b]))
+check(buckets.demos.public === false, 'demos bucket is private')
+check(Number(buckets['code-videos'].file_size_limit) === 15728640, 'preview videos capped at 15 MB by the server')
+
+// ---- 005: rate limits
+const copyId = (await db.query(`select id from code_items where slug='free-one'`)).rows[0].id
+const before = (await db.query(`select copy_count from code_items where slug='free-one'`)).rows[0].copy_count
+for (let i = 0; i < 65; i++) {
+  await db.exec(`select set_config('request.headers', '{"x-forwarded-for":"198.51.100.7"}', false); set role anon; select increment_code_copy('${copyId}'); reset role;`)
+}
+const after = (await db.query(`select copy_count from code_items where slug='free-one'`)).rows[0].copy_count
+check(after - before === 60, `copy counter stops at 60 per visitor per hour (got +${after - before})`)
+let subLimited = false
+for (let i = 0; i < 7 && !subLimited; i++) {
+  try {
+    await db.exec(`select set_config('request.headers', '{"x-forwarded-for":"198.51.100.8"}', false); set role anon; select subscribe_newsletter('fan${i}@x.com')`)
+  } catch { subLimited = true } finally { await db.exec('reset role') }
+}
+check(subLimited, 'newsletter is rate-limited per visitor (5/hour)')
+let contactLimited = false
+for (let i = 0; i < 7 && !contactLimited; i++) contactLimited = (await probe('service', `select submit_contact('A','a@x.com','','','','hi','spammer')`)) === null
+check(contactLimited, 'contact form is rate-limited per visitor (5/hour)')
+const keys = (await db.query(`select key from private.rate_limits`)).rows.map((r) => r.key)
+check(!keys.some((k) => k.includes('198.51') || k.includes('203.0') || k.includes('192.0')), 'raw visitor IPs are never stored (hashed)')
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

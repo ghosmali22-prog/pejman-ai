@@ -3,9 +3,11 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { FadeIn } from '../components/motion/FadeIn'
 import { RevealText } from '../components/motion/RevealText'
 import { InstagramIcon, TelegramIcon, WhatsAppIcon } from '../components/ui/BrandIcons'
+import { Turnstile } from '../components/ui/Turnstile'
+import { TURNSTILE_SITE_KEY } from '../lib/config'
 import { BUDGET_RANGES, contactLinks, PROJECT_TYPES, WORK_MODES } from '../config/site'
 import { useSiteData } from '../providers/SiteDataProvider'
-import { sendContactMessage } from '../services/contact'
+import { ContactError, sendContactMessage } from '../services/contact'
 
 type Status = 'idle' | 'sending' | 'sent' | 'error'
 
@@ -19,6 +21,9 @@ export function Contact() {
   const [status, setStatus] = useState<Status>('idle')
   const [projectType, setProjectType] = useState<string>(PROJECT_TYPES[0])
   const [workMode, setWorkMode] = useState<string>(WORK_MODES[0])
+  const [token, setToken] = useState('')
+  const [round, setRound] = useState(0) // new Turnstile check after each send
+  const [error, setError] = useState('')
 
   // "Request a quote" buttons in Services pre-select the project type.
   useEffect(() => {
@@ -34,7 +39,12 @@ export function Contact() {
     e.preventDefault()
     const form = e.currentTarget
     const data = new FormData(form)
-    if (data.get('company')) return // honeypot: bots fill hidden fields
+    if (data.get('company')) return // honeypot: bots fill hidden fields (checked again on the server)
+    if (TURNSTILE_SITE_KEY && !token) {
+      setError('Please complete the human check above.')
+      setStatus('error')
+      return
+    }
     setStatus('sending')
     try {
       await sendContactMessage({
@@ -44,11 +54,17 @@ export function Contact() {
         work_mode: workMode,
         budget: String(data.get('budget') ?? ''),
         message: String(data.get('message') ?? ''),
+        company: String(data.get('company') ?? ''),
+        turnstileToken: token,
       })
       setStatus('sent')
       form.reset()
-    } catch {
+    } catch (err) {
+      setError(err instanceof ContactError ? err.message : '')
       setStatus('error')
+    } finally {
+      setToken('')
+      setRound((r) => r + 1)
     }
   }
 
@@ -157,6 +173,8 @@ export function Contact() {
                   className={`${field} h-auto py-4 sm:col-span-2`}
                 />
 
+                <Turnstile onToken={setToken} resetKey={round} />
+
                 <div className="mt-2 flex flex-col gap-3 sm:col-span-2 sm:flex-row sm:items-center">
                   <button
                     type="submit"
@@ -171,7 +189,7 @@ export function Contact() {
                   </button>
                   {status === 'error' && (
                     <p className="text-sm text-red-600">
-                      Something went wrong. Please try again or message me directly.
+                      {error || 'Something went wrong. Please try again or message me directly.'}
                     </p>
                   )}
                 </div>
