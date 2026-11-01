@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, Check, Copy, Download, Lock, Mail, Monitor, Share2, Smartphone, X } from 'lucide-react'
+import { ArrowRight, Check, Copy, Download, Loader2, Lock, Mail, Monitor, Play, Share2, ShieldCheck, Smartphone, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { InstagramIcon, TelegramIcon, WhatsAppIcon } from '../../components/ui/BrandIcons'
@@ -9,9 +9,9 @@ import { canLivePreview, itemFiles, languageLabel } from '../../lib/code'
 import { useMotion } from '../../providers/MotionProvider'
 import { useSiteData } from '../../providers/SiteDataProvider'
 import { useToast } from '../../providers/ToastProvider'
-import { isFirstCopy, trackCodeCopy } from '../../services/code'
+import { isFirstCopy, loadDemo, trackCodeCopy } from '../../services/code'
 import type { CodeItem } from '../../types'
-import type { Device } from './CodePreview'
+import { CodePreview, type Device } from './CodePreview'
 import { CodeThumb } from './CodeThumb'
 import { CodeViewer } from './CodeViewer'
 import { downloadFiles } from './download'
@@ -152,7 +152,32 @@ function CodeDetail({ item, onShare }: { item: CodeItem; onShare: () => void }) 
   const [tab, setTab] = useState(0)
   const [copied, setCopied] = useState(false)
   const [count, setCount] = useState(item.copy_count)
+  const [demo, setDemo] = useState<string | null>(null)
+  const [demoState, setDemoState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const previewRef = useRef<HTMLDivElement>(null)
   const file = files[tab] ?? files[0]
+  const switchable = live || demo !== null
+
+  // Premium: fetch the protected demo through a short-lived signed link and run it in the sandbox.
+  const onTryDemo = async () => {
+    if (demoState === 'loading') return
+    setDemoState('loading')
+    try {
+      setDemo(await loadDemo(item.slug))
+      setDemoState('idle')
+      previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    } catch (err) {
+      setDemoState('error')
+      toast(err instanceof Error && err.message.startsWith('Too many') ? err.message : 'Live demo unavailable — please try again')
+    }
+  }
+
+  const preview = (d: Device, className: string) =>
+    demo !== null ? (
+      <CodePreview html={demo} title={`${item.title} (protected demo)`} device={d} className={className} />
+    ) : (
+      <CodeThumb item={item} device={d} className={className} />
+    )
 
   const onCopy = async () => {
     if (!file) return
@@ -192,16 +217,22 @@ function CodeDetail({ item, onShare }: { item: CodeItem; onShare: () => void }) 
       </div>
 
       {/* Preview */}
-      <div className="px-3 sm:px-5 md:px-6">
+      <div ref={previewRef} className="scroll-mt-4 px-3 sm:px-5 md:px-6">
         <div className="overflow-hidden rounded-[22px] bg-ink ring-1 ring-white/[0.08]">
-          {live && (
+          {switchable && (
             <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-3 py-2">
               <span className="flex items-center gap-2 ps-1 text-xs font-medium text-paper/50">
                 <span className="relative flex size-2">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-lime opacity-60" />
                   <span className="relative inline-flex size-2 rounded-full bg-lime" />
                 </span>
-                Live preview
+                {demo !== null ? (
+                  <>
+                    Live demo <ShieldCheck className="size-3.5 text-lime" aria-label="protected" />
+                  </>
+                ) : (
+                  'Live preview'
+                )}
               </span>
               <div className="flex rounded-full bg-white/[0.05] p-1 ring-1 ring-white/10" role="tablist" aria-label="Preview size">
                 {(
@@ -226,20 +257,25 @@ function CodeDetail({ item, onShare }: { item: CodeItem; onShare: () => void }) 
               </div>
             </div>
           )}
-          {live && device === 'mobile' ? (
+          {switchable && device === 'mobile' ? (
             <div className="flex justify-center bg-[radial-gradient(60%_80%_at_50%_0%,rgb(198_244_50/0.08),transparent)] px-4 py-6">
               <div className="w-full max-w-[390px] overflow-hidden rounded-[34px] p-2 ring-1 ring-white/15">
-                <CodeThumb item={item} device="mobile" className="aspect-[390/760] w-full rounded-[26px]" />
+                {preview('mobile', 'aspect-[390/760] w-full rounded-[26px]')}
               </div>
             </div>
           ) : (
-            <CodeThumb item={item} device="desktop" className="aspect-[4/3] w-full sm:aspect-[16/10] md:max-h-[62vh]" />
+            preview('desktop', 'aspect-[4/3] w-full sm:aspect-[16/10] md:max-h-[62vh]')
           )}
         </div>
       </div>
 
       {item.is_premium ? (
-        <PremiumPanel item={item} onShare={onShare} />
+        <PremiumPanel
+          item={item}
+          onShare={onShare}
+          onTryDemo={item.has_demo && demo === null ? onTryDemo : undefined}
+          demoLoading={demoState === 'loading'}
+        />
       ) : (
         <div className="px-3 pb-6 pt-5 sm:px-5 md:px-6 md:pb-8">
           {/* File tabs */}
@@ -310,7 +346,18 @@ function CodeDetail({ item, onShare }: { item: CodeItem; onShare: () => void }) 
 }
 
 /** Premium items: no code in the browser — a "Get this code" button opens the contact options. */
-function PremiumPanel({ item, onShare }: { item: CodeItem; onShare: () => void }) {
+function PremiumPanel({
+  item,
+  onShare,
+  onTryDemo,
+  demoLoading,
+}: {
+  item: CodeItem
+  onShare: () => void
+  /** Shown when the item has a protected live demo that isn't open yet. */
+  onTryDemo?: () => void
+  demoLoading?: boolean
+}) {
   const { settings } = useSiteData()
   const [open, setOpen] = useState(false)
   const links = contactLinks(settings.contact)
@@ -360,7 +407,7 @@ function PremiumPanel({ item, onShare }: { item: CodeItem; onShare: () => void }
               ))}
             </motion.div>
           ) : (
-            <motion.div key="cta" exit={{ opacity: 0 }} className="relative mt-5 flex gap-2">
+            <motion.div key="cta" exit={{ opacity: 0 }} className="relative mt-5 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setOpen(true)}
@@ -369,6 +416,17 @@ function PremiumPanel({ item, onShare }: { item: CodeItem; onShare: () => void }
                 Get this code
                 <ArrowRight className="size-5 transition-transform duration-300 group-hover:translate-x-1" />
               </button>
+              {onTryDemo && (
+                <button
+                  type="button"
+                  onClick={onTryDemo}
+                  disabled={demoLoading}
+                  className="order-last flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white/[0.07] px-6 text-base font-semibold text-paper ring-1 ring-white/15 transition-colors hover:bg-white/[0.12] disabled:opacity-60 sm:order-none sm:w-auto"
+                >
+                  {demoLoading ? <Loader2 className="size-5 animate-spin" /> : <Play className="size-5 fill-current" />}
+                  Try live demo
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onShare}

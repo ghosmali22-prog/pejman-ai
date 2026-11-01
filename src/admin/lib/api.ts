@@ -1,8 +1,8 @@
 import { defaultSettings } from '../../config/site'
-import { sampleCodeItems } from '../../data/sampleCode'
+import { sampleCodeItems, sampleDemoSource } from '../../data/sampleCode'
 import { sampleCategories, samplePrompts } from '../../data/samples'
 import { SUPABASE_KEY, SUPABASE_URL } from '../../lib/config'
-import { CODE_BUCKET, IMAGE_BUCKET, supabase, VIDEO_BUCKET } from '../../lib/supabase'
+import { CODE_BUCKET, CODE_VIDEO_BUCKET, DEMO_BUCKET, IMAGE_BUCKET, supabase, VIDEO_BUCKET } from '../../lib/supabase'
 import { mergeSettings } from '../../services/settings'
 import type {
   Category,
@@ -13,6 +13,7 @@ import type {
   SiteSettings,
   Subscriber,
 } from '../../types'
+import { sniff, videoMime, type Sniffed } from './fileCheck'
 import type { CompressedImage } from './image'
 
 /**
@@ -33,7 +34,12 @@ const uid = () => crypto.randomUUID()
 const store = {
   prompts: samplePrompts.map<PromptRow>((p, i) => ({ ...p, created_at: days(i * 3) })),
   categories: [...sampleCategories],
-  code: sampleCodeItems.map<CodeItemRow>((c) => ({ ...c, is_published: true })),
+  // Demo mode: the premium sample keeps its source here (as the database would), so the
+  // admin can build and preview its protected demo.
+  code: sampleCodeItems.map<CodeItemRow>((c) =>
+    c.is_premium ? { ...c, files: sampleDemoSource(), is_published: true, demo_enabled: true } : { ...c, is_published: true },
+  ),
+  demos: new Map<string, string>(),
   messages: [
     {
       id: uid(),
@@ -161,16 +167,30 @@ export const MAX_VIDEO_BYTES = 100 * 1024 * 1024
  * like images. Sent with XMLHttpRequest instead of supabase-js so the editor can show progress.
  */
 export async function uploadPromptVideo(file: File, onProgress?: (fraction: number) => void): Promise<UploadedVideo> {
+  const kind = await sniff(file)
+  if (!kind || !VIDEO_KINDS.includes(kind)) throw new Error('Not a video file')
+  if (file.size > MAX_VIDEO_BYTES) throw new Error('Video is too large')
   if (demo) return { video_url: URL.createObjectURL(file), video_path: null }
-  const ext = file.name.match(/\.(\w{2,5})$/)?.[1]?.toLowerCase() ?? 'mp4'
-  const path = `prompts/${uid()}.${ext}`
+  const path = await uploadVideoFile(VIDEO_BUCKET, 'prompts', file, kind, onProgress)
+  const { data } = sb().storage.from(VIDEO_BUCKET).getPublicUrl(path)
+  return { video_url: data.publicUrl, video_path: path }
+}
+
+const VIDEO_KINDS: Sniffed[] = ['mp4', 'mov', 'webm', 'mkv', 'avi', 'ogg', 'ts', 'flv']
+
+/**
+ * Sends a checked video to Storage with a random file name (nothing from the original name is
+ * used); the stored type comes from the file's real bytes. Uses XMLHttpRequest for progress.
+ */
+async function uploadVideoFile(bucket: string, folder: string, file: File, kind: Sniffed, onProgress?: (fraction: number) => void): Promise<string> {
+  const path = `${folder}/${uid()}.${kind}`
   const { data: session } = await sb().auth.getSession()
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${SUPABASE_URL}/storage/v1/object/${VIDEO_BUCKET}/${path}`)
+    xhr.open('POST', `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`)
     xhr.setRequestHeader('Authorization', `Bearer ${session.session?.access_token ?? SUPABASE_KEY}`)
     xhr.setRequestHeader('apikey', SUPABASE_KEY!)
-    xhr.setRequestHeader('Content-Type', file.type || 'video/mp4')
+    xhr.setRequestHeader('Content-Type', videoMime(kind))
     xhr.setRequestHeader('cache-control', 'max-age=31536000')
     xhr.setRequestHeader('x-upsert', 'false')
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total)
@@ -179,8 +199,7 @@ export async function uploadPromptVideo(file: File, onProgress?: (fraction: numb
     xhr.onerror = () => reject(new Error('Network error'))
     xhr.send(file)
   })
-  const { data } = sb().storage.from(VIDEO_BUCKET).getPublicUrl(path)
-  return { video_url: data.publicUrl, video_path: path }
+  return path
 }
 
 export function discardVideo(video?: UploadedVideo | null) {
@@ -302,6 +321,56 @@ export function discardCodePreview(img?: UploadedPreview | null) {
   if (img?.preview_image_path) removeImage(img.preview_image_path, CODE_BUCKET).catch(() => {})
 }
 
+export type UploadedCodeVideo = Pick<CodeItemRow, 'preview_video_url' | 'preview_video_path'>
+export const MAX_CODE_VIDEO_BYTES = 15 * 1024 * 1024
+
+/** Uploads a premium item's preview video (MP4/WebM, max 15 MB — the bucket refuses more). */
+export async function uploadCodeVideo(file: File, onProgress?: (fraction: number) => void): Promise<UploadedCodeVideo> {
+  const kind = await sniff(file)
+  if (kind !== 'mp4' && kind !== 'webm') throw new Error('Preview video must be MP4 or WebM')
+  if (file.size > MAX_CODE_VIDEO_BYTES) throw new Error('Preview video is larger than 15 MB')
+  if (demo) return { preview_video_url: URL.createObjectURL(file), preview_video_path: null }
+  const path = await uploadVideoFile(CODE_VIDEO_BUCKET, 'previews', file, kind, onProgress)
+  const { data } = sb().storage.from(CODE_VIDEO_BUCKET).getPublicUrl(path)
+  return { preview_video_url: data.publicUrl, preview_video_path: path }
+}
+
+/** Removes a preview video that ended up unused (replaced, removed, or editor left without saving). */
+export function discardCodeVideo(video?: UploadedCodeVideo | null) {
+  if (video?.preview_video_path && !demo) sb().storage.from(CODE_VIDEO_BUCKET).remove([video.preview_video_path]).catch(() => {})
+}
+
+/** Stores a generated demo build in the PRIVATE demos bucket and returns its path. */
+export async function uploadDemo(html: string): Promise<string> {
+  const path = `d/${uid()}.html`
+  if (demo) {
+    store.demos.set(path, html)
+    return path
+  }
+  const { error } = await sb()
+    .storage.from(DEMO_BUCKET)
+    .upload(path, new Blob([html], { type: 'text/html' }), { contentType: 'text/html', cacheControl: '60', upsert: false })
+  if (error) throw error
+  return path
+}
+
+/** Reads a stored demo back for the admin preview (through a 60-second signed link). */
+export async function readDemo(path: string): Promise<string> {
+  if (demo) return store.demos.get(path) ?? ''
+  const { data, error } = await sb().storage.from(DEMO_BUCKET).createSignedUrl(path, 60)
+  if (error || !data) throw error ?? new Error('No demo')
+  const res = await fetch(data.signedUrl, { cache: 'no-store' })
+  if (!res.ok) throw new Error('No demo')
+  return res.text()
+}
+
+/** Deletes a demo build that is no longer used. */
+export function discardDemo(path?: string | null) {
+  if (!path) return
+  if (demo) store.demos.delete(path)
+  else sb().storage.from(DEMO_BUCKET).remove([path]).catch(() => {})
+}
+
 export type CodeDraft = Omit<CodeItemRow, 'id' | 'copy_count' | 'created_at' | 'sort_order'> & { id?: string }
 
 export const code = {
@@ -326,6 +395,7 @@ export const code = {
     const { existing } = opts
     if (demo) {
       const current = id ? store.code.find((c) => c.id === id) : null
+      if (current?.demo_path && current.demo_path !== row.demo_path) discardDemo(current.demo_path)
       if (current) return Object.assign(current, row)
       const created: CodeItemRow = {
         ...(row as CodeItemRow),
@@ -342,6 +412,8 @@ export const code = {
       if (existing?.preview_image_path && existing.preview_image_path !== saved.preview_image_path) {
         removeImage(existing.preview_image_path, CODE_BUCKET).catch(() => {})
       }
+      if (existing?.preview_video_path && existing.preview_video_path !== saved.preview_video_path) discardCodeVideo(existing)
+      if (existing?.demo_path && existing.demo_path !== saved.demo_path) discardDemo(existing.demo_path)
       return saved
     }
     return run<CodeItemRow>(
@@ -368,6 +440,8 @@ export const code = {
     }
     await run(sb().from('code_items').delete().eq('id', row.id))
     await removeImage(row.preview_image_path, CODE_BUCKET).catch(() => {})
+    discardCodeVideo(row)
+    discardDemo(row.demo_path)
   },
 
   /** Saves a new order: sort_order = index in the given list. */

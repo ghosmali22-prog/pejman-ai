@@ -1,3 +1,6 @@
 User-agent: *
 Allow: /
+# Admin panel and the code-preview runner are not for search engines.
+Disallow: /admin/
+Disallow: /sandbox.html
 Sitemap: https://pejiai.com/sitemap.xml

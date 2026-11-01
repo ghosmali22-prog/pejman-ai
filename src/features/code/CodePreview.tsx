@@ -15,7 +15,9 @@ const fingerprint = (s: string) => {
 const SANDBOX_URL = `${import.meta.env.BASE_URL}sandbox.html`
 
 interface CodePreviewProps {
-  files: CodeFile[]
+  files?: CodeFile[]
+  /** A ready document instead of files (the protected live demo of a premium item). */
+  html?: string
   title: string
   device?: Device
   /** Card thumbnail: not interactive, hidden from screen readers. */
@@ -34,13 +36,13 @@ interface CodePreviewProps {
  * Speed: the frame is created only when the preview scrolls into view. It renders at a real
  * desktop (1280px) or phone (390px) width and is scaled down to fit its box.
  */
-export function CodePreview({ files, title, device = 'desktop', thumbnail, className = '' }: CodePreviewProps) {
+export function CodePreview({ files, html: doc, title, device = 'desktop', thumbnail, className = '' }: CodePreviewProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const [visible, setVisible] = useState(false)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [ready, setReady] = useState(false)
-  const html = useMemo(() => buildPreviewDocument(files), [files])
+  const html = useMemo(() => doc ?? buildPreviewDocument(files ?? []), [doc, files])
 
   useEffect(() => {
     const el = boxRef.current
@@ -93,7 +95,8 @@ export function CodePreview({ files, title, device = 'desktop', thumbnail, class
           ref={frameRef}
           src={SANDBOX_URL}
           sandbox="allow-scripts"
-          referrerPolicy="no-referrer"
+          // Demos check that they are framed by pejiai.com; browsers without ancestorOrigins read the referrer.
+          referrerPolicy={doc ? 'strict-origin' : 'no-referrer'}
           title={`Live preview: ${title}`}
           tabIndex={thumbnail ? -1 : undefined}
           className={`absolute top-0 origin-top-left border-0 transition-opacity duration-500 ${

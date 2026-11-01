@@ -1,7 +1,15 @@
 import type { CodeItem } from '../types'
 
 /** Demo code items, shown ONLY while Supabase is not connected (local preview / tests). */
-const base = { live_preview_enabled: true, is_featured: false, is_premium: false, copy_count: 0, preview_image_url: null }
+const base = {
+  live_preview_enabled: true,
+  is_featured: false,
+  is_premium: false,
+  has_demo: false,
+  copy_count: 0,
+  preview_image_url: null,
+  preview_video_url: null,
+}
 
 const glassCard = `<!doctype html>
 <html lang="en">
@@ -74,6 +82,13 @@ export function MagneticButton({ label = 'Hover me' }: { label?: string }) {
   )
 }`
 
+/** Demo mode only: the source the sample premium item's protected demo is built from. */
+export const sampleDemoSource = () => [
+  { name: 'index.html', language: 'html', content: glassCard },
+  { name: 'style.css', language: 'css', content: glassCss },
+  { name: 'app.js', language: 'js', content: glassJs },
+]
+
 export const sampleCodeItems: CodeItem[] = [
   {
     ...base,
@@ -130,6 +145,7 @@ export const sampleCodeItems: CodeItem[] = [
     code: '',
     files: [],
     is_premium: true,
+    has_demo: true,
     live_preview_enabled: false,
     sort_order: 3,
     created_at: '2026-10-27T10:00:00Z',

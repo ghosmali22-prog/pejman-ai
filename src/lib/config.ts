@@ -4,3 +4,6 @@ export const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | u
 
 /** True once the Supabase URL + publishable key are provided. Otherwise the site runs on demo data. */
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_KEY)
+
+/** Cloudflare Turnstile site key (public). Empty → the contact form shows no human check. */
+export const TURNSTILE_SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined) ?? ''

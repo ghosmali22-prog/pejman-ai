@@ -7,11 +7,13 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 
 /**
  * Adds a strict Content-Security-Policy to the built index.html.
- * GitHub Pages cannot send security headers, so it goes in a <meta> tag.
- * Inline scripts are allowed only by their exact SHA-256 hash, and the page may
- * only talk to itself and to this project's Supabase.
+ * GitHub Pages cannot send security headers, so it goes in a <meta> tag (Cloudflare adds the
+ * header versions, plus frame-ancestors / HSTS, which a <meta> tag can't — see docs/CLOUDFLARE-SETUP.md).
+ * No 'unsafe-inline' or 'unsafe-eval': inline scripts are allowed only by their exact SHA-256 hash,
+ * styles only from our own files, and the page may only talk to itself and this project's Supabase
+ * (plus Cloudflare Turnstile on the contact form, when it is switched on).
  */
-function contentSecurityPolicy(supabaseUrl?: string): Plugin {
+function contentSecurityPolicy(supabaseUrl?: string, turnstile?: boolean): Plugin {
   return {
     name: 'pejman-csp',
     apply: 'build',
@@ -22,16 +24,19 @@ function contentSecurityPolicy(supabaseUrl?: string): Plugin {
           ([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`,
         )
         const sb = supabaseUrl ? new URL(supabaseUrl).origin : ''
+        const cf = turnstile ? 'https://challenges.cloudflare.com' : ''
         const csp = [
           "default-src 'self'",
-          `script-src 'self' ${hashes.join(' ')}`,
-          "style-src 'self' 'unsafe-inline'",
+          `script-src 'self' ${hashes.join(' ')} ${cf}`,
+          "style-src 'self'",
           `img-src 'self' data: blob: ${sb}`,
           `media-src 'self' blob: ${sb}`,
           "font-src 'self'",
           `connect-src 'self' ${sb} ${sb.replace(/^https/, 'wss')}`,
-          // Code previews: only /sandbox.html, always embedded with sandbox="allow-scripts".
-          "frame-src 'self'",
+          // Code previews and protected demos: only /sandbox.html, always with sandbox="allow-scripts".
+          `frame-src 'self' ${cf}`,
+          "worker-src 'self' blob:",
+          "manifest-src 'self'",
           "object-src 'none'",
           "base-uri 'self'",
           "form-action 'self'",
@@ -89,7 +94,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   return {
     base: process.env.VITE_BASE || '/',
-    plugins: [react(), tailwindcss(), contentSecurityPolicy(env.VITE_SUPABASE_URL), adminEntry()],
+    plugins: [react(), tailwindcss(), contentSecurityPolicy(env.VITE_SUPABASE_URL, Boolean(env.VITE_TURNSTILE_SITE_KEY)), adminEntry()],
     build: {
       rollupOptions: {
         output: {
