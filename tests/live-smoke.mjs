@@ -86,5 +86,31 @@ if (withDemo) {
   check(!(await fetch(tampered)).ok, 'a tampered link does not work')
 } else console.log('info  no premium item with a live demo yet — signed-link checks skipped')
 
+// --- GraphQL must never hand out premium code or private data (pg_graphql is disabled today; this
+// keeps it that way if it is ever turned on — anon has no table grants, so it stays empty either way).
+const gqlText = async (query) => {
+  const r = await fetch(`${SB}/graphql/v1`, { method: 'POST', headers: H, body: JSON.stringify({ query }) })
+  return r.text()
+}
+const noLeak = (s) => !/"code"\s*:\s*"[^"]/.test(s) && !/[\w.+-]+@[\w.-]+\.\w{2,}/.test(s)
+check(noLeak(await gqlText('{ code_itemsCollection(first:5){ edges { node { is_premium code } } } }')), 'GraphQL does not expose code')
+check(noLeak(await gqlText('{ messagesCollection(first:3){ edges { node { email message } } } }')), 'GraphQL does not expose messages')
+check(noLeak(await gqlText('{ subscribersCollection(first:3){ edges { node { email } } } }')), 'GraphQL does not expose subscriber emails')
+
+// --- storage buckets must not be listable by a visitor (public buckets serve by exact path only).
+const canList = async (b) => {
+  const r = await fetch(`${SB}/storage/v1/object/list/${b}`, { method: 'POST', headers: H, body: '{"prefix":"","limit":100}' })
+  if (!r.ok) return false
+  const j = await r.json().catch(() => [])
+  return Array.isArray(j) && j.length > 0
+}
+for (const b of ['demos', 'code', 'code-videos', 'images', 'videos']) check(!(await canList(b)), `visitor cannot list the ${b} bucket`)
+
+// --- auth: report which sign-in methods are open (info only). Email sign-up on = extra, low-impact
+// attack surface: such an account is still locked out of admin by is_admin() (owner Gmail + Google only).
+const settings = await fetch(`${SB}/auth/v1/settings`, { headers: H }).then((r) => r.json()).catch(() => ({}))
+const emailSignup = Boolean(settings?.external?.email) && settings?.disable_signup === false
+console.log(`info  auth: google=${settings?.external?.google} email-signup=${emailSignup} anonymous=${settings?.external?.anonymous_users} (email sign-up should be off)`)
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
