@@ -7,7 +7,7 @@ const KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_gFpwndMFKSylPY
 const H = { apikey: KEY, 'Content-Type': 'application/json', ...(KEY.startsWith('eyJ') ? { Authorization: `Bearer ${KEY}` } : {}) }
 
 let pass = 0, fail = 0
-const check = (good, label) => { good ? pass++ : fail++; console.log(`${good ? 'PASS' : 'FAIL'}  ${label}`) }
+const check = (good, label) => { if (good) pass++; else fail++; console.log(`${good ? 'PASS' : 'FAIL'}  ${label}`) }
 const denied = (r) => r.status === 401 || r.status === 403 || r.status === 404
 const rest = (path, init = {}) => fetch(`${SB}/rest/v1/${path}`, { ...init, headers: { ...H, ...(init.headers ?? {}) } })
 
@@ -35,17 +35,27 @@ check(premium.every((i) => i.code === '' && JSON.stringify(i.files) === '[]' && 
 check(denied(await rest('rpc/demo_request', { method: 'POST', body: JSON.stringify({ p_slug: 'x', p_client: 'x' }) })), 'visitor cannot call demo_request')
 check(denied(await rest('rpc/submit_contact', { method: 'POST', body: JSON.stringify({ p_name: 'x', p_email: 'x', p_project_type: '', p_work_mode: '', p_budget: '', p_message: 'x', p_client: 'x' }) })), 'visitor cannot call submit_contact')
 check(denied(await rest('rpc/admin_daily_copies', { method: 'POST', body: '{"p_days":7}' })), 'visitor cannot call the admin chart')
-for (const t of ['prompts', 'categories', 'code_items', 'site_settings']) {
-  const r = await rest(t, { method: 'PATCH', body: '{"slug":"x"}', headers: { Prefer: 'return=minimal' } })
-  const r2 = await rest(`${t}?id=eq.00000000-0000-0000-0000-000000000000`, { method: 'DELETE' })
-  check(denied(r) && denied(r2), `visitor cannot change or delete ${t}`)
+// Each request targets a row id that does not exist and only "changes" the id to itself, so nothing
+// could ever be modified. It must still fail with "permission denied" (42501): a PATCH without a
+// filter would be stopped earlier by Supabase's safe-update guard and prove nothing.
+const permissionDenied = async (r) => denied(r) && (await r.json().catch(() => ({}))).code === '42501'
+for (const [t, id] of [['prompts', '00000000-0000-0000-0000-000000000000'], ['categories', '00000000-0000-0000-0000-000000000000'], ['code_items', '00000000-0000-0000-0000-000000000000'], ['site_settings', -1]]) {
+  const r = await rest(`${t}?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ id }), headers: { Prefer: 'return=minimal' } })
+  const r2 = await rest(`${t}?id=eq.${id}`, { method: 'DELETE' })
+  check((await permissionDenied(r)) && (await permissionDenied(r2)), `visitor cannot change or delete ${t}`)
 }
 if (process.env.AFTER_006 !== '0') {
   // Invalid email: even if inserting were allowed, the database would refuse the row.
   const r = await rest('messages', { method: 'POST', body: JSON.stringify({ name: 'smoke', email: 'not-an-email', message: 'x' }) })
   const err = r.ok ? {} : await r.json().catch(() => ({}))
   check(denied(r) && err.code === '42501', 'visitor cannot write messages directly')
+  const s = await rest('subscribers', { method: 'POST', body: JSON.stringify({ email: 'not-an-email' }) })
+  const serr = s.ok ? {} : await s.json().catch(() => ({}))
+  check(denied(s) && serr.code === '42501', 'visitor cannot write subscribers directly')
 }
+// The newsletter function is the only way in, and it validates input (invalid email: nothing is stored).
+const nl = await rest('rpc/subscribe_newsletter', { method: 'POST', body: JSON.stringify({ p_email: 'not-an-email' }) })
+check(nl.status === 400 && (await nl.json().catch(() => ({}))).code === '22023', 'newsletter sign-up rejects a bad email')
 
 // --- storage
 for (const bucket of ['images', 'videos', 'code', 'code-videos', 'demos']) {

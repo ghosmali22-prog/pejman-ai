@@ -10,7 +10,14 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # @types/node must match the Node version CI and the site's tooling run on (node-version in
+      # .github/workflows/deploy.yml, currently 24). Bump it by hand together with that number.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    # Room for every action we use, so no update is silently held back by the limit.
+    open-pull-requests-limit: 10
