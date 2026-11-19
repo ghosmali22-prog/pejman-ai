@@ -33,8 +33,8 @@ function contentSecurityPolicy(supabaseUrl?: string, turnstile?: boolean): Plugi
           `media-src 'self' blob: ${sb}`,
           "font-src 'self'",
           `connect-src 'self' ${sb} ${sb.replace(/^https/, 'wss')}`,
-          // Code previews and protected demos: only /sandbox.html, always with sandbox="allow-scripts".
-          `frame-src 'self' ${cf}`,
+          // Code previews: /sandbox.html with sandbox="allow-scripts"; the full-screen /demo/ page: the camera runner on its own origin.
+          `frame-src 'self' https://ghosmali22-prog.github.io ${cf}`,
           "worker-src 'self' blob:",
           "manifest-src 'self'",
           "object-src 'none'",
