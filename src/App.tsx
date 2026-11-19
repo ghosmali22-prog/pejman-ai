@@ -10,6 +10,7 @@ import { ToastProvider } from './providers/ToastProvider'
 
 // The admin panel is its own bundle: visitors of the public site never download it.
 const AdminApp = lazy(() => import('./admin/AdminApp'))
+const DemoPage = lazy(() => import('./pages/DemoPage').then((m) => ({ default: m.DemoPage })))
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '')
 
@@ -25,6 +26,17 @@ export default function App() {
                 <Suspense fallback={<div className="min-h-svh bg-ink" />}>
                   <AdminApp />
                 </Suspense>
+              }
+            />
+            {/* Full-screen live demo: no header/footer. */}
+            <Route
+              path="/demo"
+              element={
+                <SiteDataProvider>
+                  <Suspense fallback={<div className="min-h-svh bg-ink" />}>
+                    <DemoPage />
+                  </Suspense>
+                </SiteDataProvider>
               }
             />
             <Route

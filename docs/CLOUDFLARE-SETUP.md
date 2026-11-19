@@ -44,8 +44,12 @@ Name: `Security headers` · When: **All incoming requests** · Then add **Set st
 | `X-Frame-Options` | `SAMEORIGIN` |
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()` |
+| `Permissions-Policy` | `camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()` |
 | `Cross-Origin-Opener-Policy` | `same-origin-allow-popups` |
+
+> Camera and microphone must be allowed for `self`: code demos (e.g. hand tracking) request the
+> webcam from inside the sandboxed preview frame, which only works if the page itself may delegate
+> them (the frame's `allow="camera; microphone"`). The browser still asks the visitor first.
 
 Deploy. (The full script/style policy is already inside every page; this header adds the parts a
 page can't set for itself.)

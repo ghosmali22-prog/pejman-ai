@@ -267,6 +267,19 @@ function CodeDetail({ item, onShare }: { item: CodeItem; onShare: () => void }) 
             preview('desktop', 'aspect-[4/3] w-full sm:aspect-[16/10] md:max-h-[62vh]')
           )}
         </div>
+        {(live || (item.is_premium && item.has_demo)) && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 px-1">
+            <a
+              href={`${import.meta.env.BASE_URL}demo/?id=${encodeURIComponent(item.slug)}`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-lime px-4 text-sm font-semibold text-ink"
+            >
+              Open live demo ↗
+            </a>
+            <span className="text-xs text-paper/50">Needs camera? Open it full-screen.</span>
+          </div>
+        )}
       </div>
 
       {item.is_premium ? (
